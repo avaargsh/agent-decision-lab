@@ -38,6 +38,28 @@ class BenchmarkReport:
     cases: list[CaseResult]
 
 
+def _validate_scores(
+    *,
+    adapter_name: str,
+    case_id: str,
+    candidates: Sequence[str],
+    scores: Sequence[CandidateScore],
+) -> None:
+    expected = set(candidates)
+    actual = {score.candidate for score in scores}
+
+    if expected != actual or len(scores) != len(candidates):
+        raise ValueError(
+            f"{adapter_name} returned an invalid candidate set for {case_id}"
+        )
+
+    total = sum(score.probability for score in scores)
+    if abs(total - 1.0) > 1e-6:
+        raise ValueError(
+            f"{adapter_name} probabilities must sum to 1.0 for {case_id}; got {total}"
+        )
+
+
 def run_benchmark(
     adapter: DecisionAdapter,
     cases: Sequence[BenchmarkCase],
@@ -61,10 +83,12 @@ def run_benchmark(
         scores = list(adapter.score(request))
         latency_ms = (time.perf_counter() - started) * 1000.0
 
-        if {s.candidate for s in scores} != set(case.candidates):
-            raise ValueError(
-                f"{adapter.name} returned an invalid candidate set for {case.case_id}"
-            )
+        _validate_scores(
+            adapter_name=adapter.name,
+            case_id=case.case_id,
+            candidates=case.candidates,
+            scores=scores,
+        )
 
         ranked = sorted(scores, key=lambda item: item.probability, reverse=True)
         predicted = ranked[0].candidate
