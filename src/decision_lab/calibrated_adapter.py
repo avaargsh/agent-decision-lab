@@ -30,6 +30,19 @@ class CalibratedAdapter:
             else None
         )
 
+    @property
+    def last_latency_ms(self) -> float | None:
+        value = getattr(
+            self.base,
+            "last_latency_ms",
+            None,
+        )
+        return (
+            float(value)
+            if value is not None
+            else None
+        )
+
     def score(
         self,
         request: DecisionRequest,
