@@ -35,32 +35,64 @@ class FrozenLogitAdapter:
     def score(self, request: DecisionRequest) -> Sequence[CandidateScore]:
         prompt = self.prompt_builder(request)
 
-        raw: list[float] = []
-        total_tokens = 0
-        has_usage = False
+        batch_fn = getattr(
+            self.backend,
+            "logprobs",
+            None,
+        )
 
-        for candidate in request.candidates:
-            raw.append(
-                self.backend.logprob(
+        if callable(batch_fn):
+            raw = list(
+                batch_fn(
                     prompt=prompt,
-                    candidate=candidate,
+                    candidates=request.candidates,
                 )
             )
-
             usage = getattr(
                 self.backend,
                 "last_tokens_processed",
                 None,
             )
-            if usage is not None:
-                total_tokens += int(usage)
-                has_usage = True
+            self.last_tokens_processed = (
+                int(usage)
+                if usage is not None
+                else None
+            )
+        else:
+            raw = []
+            total_tokens = 0
+            has_usage = False
 
-        self.last_tokens_processed = (
-            total_tokens
-            if has_usage
-            else None
-        )
+            for candidate in request.candidates:
+                raw.append(
+                    self.backend.logprob(
+                        prompt=prompt,
+                        candidate=candidate,
+                    )
+                )
+
+                usage = getattr(
+                    self.backend,
+                    "last_tokens_processed",
+                    None,
+                )
+                if usage is not None:
+                    total_tokens += int(usage)
+                    has_usage = True
+
+            self.last_tokens_processed = (
+                total_tokens
+                if has_usage
+                else None
+            )
+
+        if len(raw) != len(
+            request.candidates
+        ):
+            raise ValueError(
+                "backend returned wrong number "
+                "of candidate scores"
+            )
 
         max_value = max(raw)
         exp_values = [
@@ -85,9 +117,13 @@ class FrozenLogitAdapter:
 def default_candidate_prompt(request: DecisionRequest) -> str:
     context_lines = [
         f"{key}: {value}"
-        for key, value in sorted(request.context.items())
+        for key, value in sorted(
+            request.context.items()
+        )
     ]
-    candidates = ", ".join(request.candidates)
+    candidates = ", ".join(
+        request.candidates
+    )
 
     return (
         f"Decision type: {request.decision_type}\n"
