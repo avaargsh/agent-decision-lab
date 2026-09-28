@@ -22,7 +22,9 @@
 - [ ] ambiguity/risk annotation guidelines
 
 ## v0.3 — Model adapters
-- [ ] frozen-LM candidate logits
+- [x] frozen-LM candidate-logit adapter
+- [x] optional Hugging Face causal-LM backend
+- [ ] fit temperature on calibration split
 - [ ] Decision LoRA
 - [ ] dedicated decision-head model
 - [ ] encoder baseline
@@ -32,5 +34,5 @@
 - [x] HTTP /decision API
 - [x] fallback provider interface
 - [ ] policy hook
-- [ ] OpenTelemetry spans
+- [x] optional OpenTelemetry spans
 - [x] replayable Decision Ledger record format
