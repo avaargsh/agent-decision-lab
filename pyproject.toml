@@ -12,6 +12,11 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+models = [
+  "torch>=2.4",
+  "transformers>=4.50",
+  "accelerate>=1.0",
+]
 
 [project.scripts]
 decision-lab = "decision_lab.cli:main"
