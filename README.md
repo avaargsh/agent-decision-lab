@@ -77,6 +77,31 @@ Ship an implementation-neutral **Decision Gateway** with:
 4. structured decision evidence,
 5. a benchmark harness that can compare decision models against generative baselines.
 
+## Quick start
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest -q
+```
+
+Run the deterministic demo Decision Gateway:
+
+```bash
+decision-lab-server --mode demo --host 127.0.0.1 --port 8080
+```
+
+`DECISION_MODE=demo` is a deterministic reference scorer, **not Qwen inference**. Real-model Qwen experiments live in the experiment/benchmark path; `qwen` server mode intentionally fails closed until a serving adapter is promoted.
+
+See `docs/quickstart.md` and `docs/api.md` for the benchmark and HTTP contracts.
+
 ## Status
 
-Private incubation repository. The goal is to make the design and experiments reproducible before public release.
+Public pre-1.0 research and engineering repository. The Decision Gateway, calibration primitives, benchmark harness, deterministic demo server, and Qwen experiment path are implemented. Dedicated decision heads, Decision LoRA, and vLLM/SGLang serving remain experimental roadmap work.
+
+## Contributing and license
+
+Contributions are welcome through focused issues and pull requests. See `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md`.
+
+Licensed under Apache License 2.0. See `LICENSE`.
