@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any, Callable, Sequence
+from typing import Any, Callable
 
 from .gateway import DecisionGateway
 from .ledger import decision_ledger_entry
-from .models import CandidateScore, DecisionRequest
+from .models import DecisionRequest
+from .telemetry import set_attribute, span
 
 
 FallbackFn = Callable[[DecisionRequest], dict[str, Any]]
@@ -30,16 +31,47 @@ class DecisionService:
             context=dict(payload.get("context", {})),
         )
 
-        result = self.gateway.decide(request)
-        response: dict[str, Any] = {
-            "action": result.action,
-            "reason_code": result.reason_code,
-            "scores": [asdict(item) for item in result.scores],
-            "decision": asdict(result.decision) if result.decision is not None else None,
-            "ledger": decision_ledger_entry(result),
-        }
+        with span(
+            "decision",
+            {
+                "decision.type": request.decision_type,
+                "decision.candidate_count": len(request.candidates),
+            },
+        ) as current:
+            result = self.gateway.decide(request)
 
-        if result.action == "FALLBACK" and self.fallback is not None:
-            response["fallback"] = self.fallback(request)
+            set_attribute(current, "decision.action", result.action)
+            set_attribute(current, "decision.reason_code", result.reason_code)
+            set_attribute(
+                current,
+                "decision.fallback",
+                result.action == "FALLBACK",
+            )
+            if result.decision is not None:
+                set_attribute(
+                    current,
+                    "decision.confidence",
+                    result.decision.confidence,
+                )
+                set_attribute(
+                    current,
+                    "decision.selected_candidate",
+                    result.decision.candidate,
+                )
 
-        return response
+            response: dict[str, Any] = {
+                "action": result.action,
+                "reason_code": result.reason_code,
+                "scores": [asdict(item) for item in result.scores],
+                "decision": (
+                    asdict(result.decision)
+                    if result.decision is not None
+                    else None
+                ),
+                "ledger": decision_ledger_entry(result),
+            }
+
+            if result.action == "FALLBACK" and self.fallback is not None:
+                response["fallback"] = self.fallback(request)
+
+            return response
