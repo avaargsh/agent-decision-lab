@@ -19,17 +19,22 @@
 - [x] Risk-Coverage computation
 - [x] false automation analysis
 - [x] separate calibration/test demo fixtures
+- [x] p50 / p95 latency reporting
+- [x] tokens-processed accounting
 - [ ] real labeled benchmark corpus
 - [ ] ambiguity/risk annotation guidelines
 
 ## v0.3 — Model adapters
 - [x] frozen-LM candidate-logit adapter
 - [x] optional Hugging Face causal-LM backend
+- [x] batched candidate scoring
 - [x] temperature fitting on held-out calibration split
 - [x] calibrated adapter wrapper
 - [x] reproducible JSON experiment report
-- [x] manual real-model GitHub Actions workflow
-- [ ] first captured Qwen real-model benchmark artifact
+- [x] real-model GitHub Actions workflow
+- [x] first captured Qwen3-0.6B real-model artifact
+- [x] same-base autoregressive structured-output adapter
+- [ ] captured Frozen vs Structured same-base comparison artifact
 - [ ] Decision LoRA
 - [ ] dedicated decision-head model
 - [ ] encoder baseline
