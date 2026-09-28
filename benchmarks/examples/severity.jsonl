@@ -1,0 +1,3 @@
+{"case_id":"sev-001","decision_type":"severity","context":{"signal":"single pod restart, no SLO impact"},"candidates":["sev1","sev2","sev3","sev4"],"gold_candidate":"sev4","metadata":{"split":"dev","source":"synthetic"}}
+{"case_id":"sev-002","decision_type":"severity","context":{"signal":"regional API outage, sustained customer impact"},"candidates":["sev1","sev2","sev3","sev4"],"gold_candidate":"sev1","metadata":{"split":"dev","source":"synthetic"}}
+{"case_id":"sev-003","decision_type":"severity","context":{"signal":"elevated p99 latency, partial degradation"},"candidates":["sev1","sev2","sev3","sev4"],"gold_candidate":"sev2","metadata":{"split":"dev","source":"synthetic"}}
