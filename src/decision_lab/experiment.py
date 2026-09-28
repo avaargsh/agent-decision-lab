@@ -6,11 +6,20 @@ from pathlib import Path
 from typing import Sequence
 
 from .benchmark import BenchmarkCase
+from .cache_adapter import CachingDecisionAdapter
 from .calibrated_adapter import CalibratedAdapter
 from .calibration import TemperatureCalibrator
-from .calibration_fit import CalibrationExample, TemperatureFit, fit_temperature
+from .calibration_fit import (
+    CalibrationExample,
+    TemperatureFit,
+    fit_temperature,
+)
 from .models import DecisionRequest
-from .runner import BenchmarkReport, DecisionAdapter, run_benchmark
+from .runner import (
+    BenchmarkReport,
+    DecisionAdapter,
+    run_benchmark,
+)
 
 
 def calibration_examples(
@@ -27,7 +36,9 @@ def calibration_examples(
         )
         examples.append(
             CalibrationExample(
-                scores=list(adapter.score(request)),
+                scores=list(
+                    adapter.score(request)
+                ),
                 gold_candidate=case.gold_candidate,
             )
         )
@@ -40,18 +51,29 @@ def run_calibrated_experiment(
     *,
     calibration_cases: Sequence[BenchmarkCase],
     test_cases: Sequence[BenchmarkCase],
-) -> tuple[TemperatureFit, BenchmarkReport, BenchmarkReport]:
+) -> tuple[
+    TemperatureFit,
+    BenchmarkReport,
+    BenchmarkReport,
+]:
+    cached = CachingDecisionAdapter(
+        adapter
+    )
+
     fit = fit_temperature(
         calibration_examples(
-            adapter,
+            cached,
             calibration_cases,
         )
     )
 
-    raw = run_benchmark(adapter, test_cases)
+    raw = run_benchmark(
+        cached,
+        test_cases,
+    )
     calibrated = run_benchmark(
         CalibratedAdapter(
-            base=adapter,
+            base=cached,
             calibrator=TemperatureCalibrator(
                 fit.temperature
             ),
@@ -74,7 +96,9 @@ def write_experiment_report(
         "metadata": metadata or {},
         "temperature_fit": asdict(fit),
         "raw": asdict(raw),
-        "calibrated": asdict(calibrated),
+        "calibrated": asdict(
+            calibrated
+        ),
     }
     Path(path).write_text(
         json.dumps(
