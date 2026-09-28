@@ -13,11 +13,13 @@
 
 ## v0.2 — Benchmark
 - [x] MCP tool-routing seed dataset
-- [ ] policy-gate dataset
-- [ ] severity / relevance dataset
-- [ ] escalation dataset
+- [x] policy-gate seed dataset
+- [x] severity seed dataset
+- [x] escalation seed dataset
 - [x] Risk-Coverage computation
 - [x] false automation analysis
+- [ ] real labeled benchmark corpus
+- [ ] ambiguity/risk annotation guidelines
 
 ## v0.3 — Model adapters
 - [ ] frozen-LM candidate logits
