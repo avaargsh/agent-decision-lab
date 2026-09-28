@@ -1,0 +1,2 @@
+{"case_id":"tool-001","decision_type":"mcp_tool_router","context":{"intent":"check current CPU saturation"},"candidates":["read_metrics","read_logs","restart_workload"],"gold_candidate":"read_metrics","metadata":{"split":"dev","risk":"low"}}
+{"case_id":"tool-002","decision_type":"mcp_tool_router","context":{"intent":"inspect recent application errors"},"candidates":["read_metrics","read_logs","restart_workload"],"gold_candidate":"read_logs","metadata":{"split":"dev","risk":"low"}}
