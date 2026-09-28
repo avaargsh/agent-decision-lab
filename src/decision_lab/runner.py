@@ -8,6 +8,7 @@ from .benchmark import BenchmarkCase
 from .metrics import Prediction, brier_score, expected_calibration_error
 from .models import CandidateScore, DecisionRequest
 from .selective import CoveragePoint, risk_coverage
+from .telemetry import set_attribute, span
 
 
 class DecisionAdapter(Protocol):
@@ -72,49 +73,110 @@ def run_benchmark(
     results: list[CaseResult] = []
     predictions: list[Prediction] = []
 
-    for case in cases:
-        request = DecisionRequest(
-            decision_type=case.decision_type,
-            candidates=case.candidates,
-            context=case.context,
-        )
-
-        started = time.perf_counter()
-        scores = list(adapter.score(request))
-        latency_ms = (time.perf_counter() - started) * 1000.0
-
-        _validate_scores(
-            adapter_name=adapter.name,
-            case_id=case.case_id,
-            candidates=case.candidates,
-            scores=scores,
-        )
-
-        ranked = sorted(scores, key=lambda item: item.probability, reverse=True)
-        predicted = ranked[0].candidate
-        confidence = ranked[0].probability
-        correct = predicted == case.gold_candidate
-
-        results.append(
-            CaseResult(
-                case_id=case.case_id,
-                predicted=predicted,
-                gold=case.gold_candidate,
-                confidence=confidence,
-                correct=correct,
-                latency_ms=latency_ms,
+    with span(
+        "decision.benchmark",
+        {
+            "benchmark.adapter": adapter.name,
+            "benchmark.case_count": len(cases),
+        },
+    ) as benchmark_span:
+        for case in cases:
+            request = DecisionRequest(
+                decision_type=case.decision_type,
+                candidates=case.candidates,
+                context=case.context,
             )
+
+            with span(
+                "decision.benchmark.case",
+                {
+                    "benchmark.adapter": adapter.name,
+                    "benchmark.case_id": case.case_id,
+                    "decision.type": case.decision_type,
+                    "decision.candidate_count": len(case.candidates),
+                },
+            ) as case_span:
+                started = time.perf_counter()
+                scores = list(adapter.score(request))
+                latency_ms = (time.perf_counter() - started) * 1000.0
+
+                _validate_scores(
+                    adapter_name=adapter.name,
+                    case_id=case.case_id,
+                    candidates=case.candidates,
+                    scores=scores,
+                )
+
+                ranked = sorted(
+                    scores,
+                    key=lambda item: item.probability,
+                    reverse=True,
+                )
+                predicted = ranked[0].candidate
+                confidence = ranked[0].probability
+                correct = predicted == case.gold_candidate
+
+                set_attribute(
+                    case_span,
+                    "decision.confidence",
+                    confidence,
+                )
+                set_attribute(
+                    case_span,
+                    "decision.correct",
+                    correct,
+                )
+                set_attribute(
+                    case_span,
+                    "decision.latency_ms",
+                    latency_ms,
+                )
+
+                results.append(
+                    CaseResult(
+                        case_id=case.case_id,
+                        predicted=predicted,
+                        gold=case.gold_candidate,
+                        confidence=confidence,
+                        correct=correct,
+                        latency_ms=latency_ms,
+                    )
+                )
+                predictions.append(
+                    Prediction(
+                        confidence=confidence,
+                        correct=correct,
+                    )
+                )
+
+        accuracy = sum(
+            1 for result in results if result.correct
+        ) / len(results)
+        brier = brier_score(predictions)
+        ece = expected_calibration_error(predictions)
+        mean_latency_ms = (
+            sum(result.latency_ms for result in results)
+            / len(results)
         )
-        predictions.append(Prediction(confidence=confidence, correct=correct))
 
-    accuracy = sum(1 for result in results if result.correct) / len(results)
+        set_attribute(benchmark_span, "benchmark.accuracy", accuracy)
+        set_attribute(benchmark_span, "benchmark.brier", brier)
+        set_attribute(benchmark_span, "benchmark.ece", ece)
+        set_attribute(
+            benchmark_span,
+            "benchmark.mean_latency_ms",
+            mean_latency_ms,
+        )
 
-    return BenchmarkReport(
-        adapter=adapter.name,
-        accuracy=accuracy,
-        brier=brier_score(predictions),
-        ece=expected_calibration_error(predictions),
-        mean_latency_ms=sum(r.latency_ms for r in results) / len(results),
-        coverage=risk_coverage(predictions, thresholds=thresholds),
-        cases=results,
-    )
+        return BenchmarkReport(
+            adapter=adapter.name,
+            accuracy=accuracy,
+            brier=brier,
+            ece=ece,
+            mean_latency_ms=mean_latency_ms,
+            coverage=risk_coverage(
+                predictions,
+                thresholds=thresholds,
+            ),
+            cases=results,
+        )
