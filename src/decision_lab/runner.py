@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
 from typing import Protocol, Sequence
@@ -35,8 +36,40 @@ class BenchmarkReport:
     brier: float
     ece: float
     mean_latency_ms: float
+    p50_latency_ms: float
+    p95_latency_ms: float
     coverage: list[CoveragePoint]
     cases: list[CaseResult]
+
+
+def _percentile(
+    values: Sequence[float],
+    quantile: float,
+) -> float:
+    if not values:
+        raise ValueError("values must not be empty")
+    if not 0.0 <= quantile <= 1.0:
+        raise ValueError(
+            "quantile must be between 0 and 1"
+        )
+
+    ordered = sorted(values)
+
+    if len(ordered) == 1:
+        return ordered[0]
+
+    position = quantile * (len(ordered) - 1)
+    lower = math.floor(position)
+    upper = math.ceil(position)
+
+    if lower == upper:
+        return ordered[lower]
+
+    weight = position - lower
+    return (
+        ordered[lower] * (1.0 - weight)
+        + ordered[upper] * weight
+    )
 
 
 def _validate_scores(
@@ -154,18 +187,52 @@ def run_benchmark(
         ) / len(results)
         brier = brier_score(predictions)
         ece = expected_calibration_error(predictions)
+
+        latencies = [
+            result.latency_ms
+            for result in results
+        ]
         mean_latency_ms = (
-            sum(result.latency_ms for result in results)
-            / len(results)
+            sum(latencies) / len(latencies)
+        )
+        p50_latency_ms = _percentile(
+            latencies,
+            0.50,
+        )
+        p95_latency_ms = _percentile(
+            latencies,
+            0.95,
         )
 
-        set_attribute(benchmark_span, "benchmark.accuracy", accuracy)
-        set_attribute(benchmark_span, "benchmark.brier", brier)
-        set_attribute(benchmark_span, "benchmark.ece", ece)
+        set_attribute(
+            benchmark_span,
+            "benchmark.accuracy",
+            accuracy,
+        )
+        set_attribute(
+            benchmark_span,
+            "benchmark.brier",
+            brier,
+        )
+        set_attribute(
+            benchmark_span,
+            "benchmark.ece",
+            ece,
+        )
         set_attribute(
             benchmark_span,
             "benchmark.mean_latency_ms",
             mean_latency_ms,
+        )
+        set_attribute(
+            benchmark_span,
+            "benchmark.p50_latency_ms",
+            p50_latency_ms,
+        )
+        set_attribute(
+            benchmark_span,
+            "benchmark.p95_latency_ms",
+            p95_latency_ms,
         )
 
         return BenchmarkReport(
@@ -174,6 +241,8 @@ def run_benchmark(
             brier=brier,
             ece=ece,
             mean_latency_ms=mean_latency_ms,
+            p50_latency_ms=p50_latency_ms,
+            p95_latency_ms=p95_latency_ms,
             coverage=risk_coverage(
                 predictions,
                 thresholds=thresholds,
