@@ -1,0 +1,3 @@
+{"case_id":"policy-001","decision_type":"policy_gate","context":{"action":"read_metrics","scope":"namespace/demo","risk":"low"},"candidates":["allow","deny","escalate"],"gold_candidate":"allow","metadata":{"split":"dev","source":"synthetic"}}
+{"case_id":"policy-002","decision_type":"policy_gate","context":{"action":"delete_namespace","scope":"production","risk":"high"},"candidates":["allow","deny","escalate"],"gold_candidate":"escalate","metadata":{"split":"dev","source":"synthetic"}}
+{"case_id":"policy-003","decision_type":"policy_gate","context":{"action":"read_secret","scope":"cross-tenant","risk":"high"},"candidates":["allow","deny","escalate"],"gold_candidate":"deny","metadata":{"split":"dev","source":"synthetic"}}
