@@ -1,0 +1,49 @@
+name: model-benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Hugging Face causal LM checkpoint
+        required: true
+        default: Qwen/Qwen3-0.6B
+      calibration:
+        description: Calibration JSONL path
+        required: true
+        default: benchmarks/demo/tool_router.calibration.jsonl
+      test:
+        description: Test JSONL path
+        required: true
+        default: benchmarks/demo/tool_router.test.jsonl
+
+jobs:
+  frozen-logits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: python -m pip install -U pip
+
+      - name: Install model benchmark dependencies
+        run: pip install -e ".[models]"
+
+      - name: Run frozen-logits calibration and benchmark
+        run: |
+          mkdir -p reports
+          python examples/run_qwen_experiment.py             --model "${{ inputs.model }}"             --calibration "${{ inputs.calibration }}"             --test "${{ inputs.test }}"             --output reports/frozen-logits.json
+
+      - name: Capture environment
+        run: |
+          python --version > reports/environment.txt
+          python -m pip freeze >> reports/environment.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frozen-logits-benchmark
+          path: reports/
