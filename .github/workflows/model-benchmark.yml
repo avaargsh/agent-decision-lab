@@ -49,12 +49,27 @@ jobs:
             --test "$TEST_DATASET" \
             --output reports/frozen-logits.json
 
-      - name: Capture environment
+      - name: Capture environment and hardware
         if: always()
         run: |
           mkdir -p reports
-          python --version > reports/environment.txt
-          python -m pip freeze >> reports/environment.txt
+          {
+            echo "github_sha=$GITHUB_SHA"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "--- python ---"
+            python --version
+            echo "--- uname ---"
+            uname -a
+            echo "--- cpu ---"
+            lscpu || true
+            echo "--- memory ---"
+            free -h || true
+            echo "--- gpu ---"
+            nvidia-smi || true
+            echo "--- packages ---"
+            python -m pip freeze
+          } > reports/environment.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
