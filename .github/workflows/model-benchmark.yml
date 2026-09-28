@@ -20,7 +20,7 @@ on:
       - ".github/model-benchmark.trigger"
 
 jobs:
-  frozen-logits:
+  decision-model-comparison:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -36,18 +36,18 @@ jobs:
       - name: Install model benchmark dependencies
         run: pip install -e ".[models]"
 
-      - name: Run frozen-logits calibration and benchmark
+      - name: Run same-base decision comparison
         env:
           MODEL: ${{ inputs.model || 'Qwen/Qwen3-0.6B' }}
           CALIBRATION: ${{ inputs.calibration || 'benchmarks/demo/tool_router.calibration.jsonl' }}
           TEST_DATASET: ${{ inputs.test || 'benchmarks/demo/tool_router.test.jsonl' }}
         run: |
           mkdir -p reports
-          python examples/run_qwen_experiment.py \
+          python examples/run_qwen_comparison.py \
             --model "$MODEL" \
             --calibration "$CALIBRATION" \
             --test "$TEST_DATASET" \
-            --output reports/frozen-logits.json
+            --output reports/qwen-comparison.json
 
       - name: Capture environment and hardware
         if: always()
@@ -74,5 +74,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: frozen-logits-benchmark
+          name: decision-model-comparison
           path: reports/
