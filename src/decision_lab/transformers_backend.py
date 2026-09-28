@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Sequence
 
 
 @dataclass
 class TransformersCausalLMBackend:
-    """Optional Hugging Face backend for candidate continuation scoring.
-
-    Imports torch/transformers lazily so the core package and CI remain lightweight.
-    """
+    """Optional Hugging Face backend for candidate continuation scoring."""
 
     model_id: str
     device: str = "auto"
@@ -26,14 +24,20 @@ class TransformersCausalLMBackend:
             ) from exc
 
         self._torch = torch
-        self._tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            self.model_id
+        )
 
         kwargs = {}
         if self.dtype != "auto":
-            kwargs["torch_dtype"] = getattr(torch, self.dtype)
+            kwargs["torch_dtype"] = getattr(
+                torch,
+                self.dtype,
+            )
 
         if self.device == "auto":
             kwargs["device_map"] = "auto"
+
         self._model = AutoModelForCausalLM.from_pretrained(
             self.model_id,
             **kwargs,
@@ -41,51 +45,150 @@ class TransformersCausalLMBackend:
         self._model.eval()
         self.last_tokens_processed = 0
 
-    def logprob(self, *, prompt: str, candidate: str) -> float:
+    def logprobs(
+        self,
+        *,
+        prompt: str,
+        candidates: Sequence[str],
+    ) -> list[float]:
+        if not candidates:
+            raise ValueError(
+                "candidates must not be empty"
+            )
+
         torch = self._torch
         tokenizer = self._tokenizer
         model = self._model
 
         prompt_ids = tokenizer(
             prompt,
-            return_tensors="pt",
             add_special_tokens=True,
         )["input_ids"]
 
-        full_ids = tokenizer(
-            prompt + candidate,
-            return_tensors="pt",
-            add_special_tokens=True,
-        )["input_ids"]
+        candidate_ids = [
+            tokenizer(
+                candidate,
+                add_special_tokens=False,
+            )["input_ids"]
+            for candidate in candidates
+        ]
 
-        if full_ids.shape[1] <= prompt_ids.shape[1]:
-            raise ValueError("candidate produced no additional tokens")
+        if any(
+            len(ids) == 0
+            for ids in candidate_ids
+        ):
+            raise ValueError(
+                "candidate produced no tokens"
+            )
 
-        # This is compute accounting for the reference implementation:
-        # every candidate is currently scored in a separate forward pass.
-        self.last_tokens_processed = int(
-            full_ids.numel()
+        sequences = [
+            prompt_ids + ids
+            for ids in candidate_ids
+        ]
+        lengths = [
+            len(sequence)
+            for sequence in sequences
+        ]
+        max_length = max(lengths)
+
+        pad_token_id = (
+            tokenizer.pad_token_id
+            if tokenizer.pad_token_id is not None
+            else tokenizer.eos_token_id
+        )
+        if pad_token_id is None:
+            pad_token_id = 0
+
+        input_ids = torch.full(
+            (
+                len(sequences),
+                max_length,
+            ),
+            fill_value=pad_token_id,
+            dtype=torch.long,
+        )
+        attention_mask = torch.zeros(
+            (
+                len(sequences),
+                max_length,
+            ),
+            dtype=torch.long,
         )
 
-        device = next(model.parameters()).device
-        full_ids = full_ids.to(device)
+        for row, sequence in enumerate(
+            sequences
+        ):
+            length = len(sequence)
+            input_ids[
+                row,
+                :length,
+            ] = torch.tensor(
+                sequence,
+                dtype=torch.long,
+            )
+            attention_mask[
+                row,
+                :length,
+            ] = 1
+
+        self.last_tokens_processed = sum(
+            lengths
+        )
+
+        device = next(
+            model.parameters()
+        ).device
+        input_ids = input_ids.to(device)
+        attention_mask = attention_mask.to(
+            device
+        )
 
         with torch.no_grad():
-            logits = model(full_ids).logits[:, :-1, :]
-            labels = full_ids[:, 1:]
+            logits = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+            ).logits[:, :-1, :]
 
-            token_logprobs = torch.log_softmax(logits, dim=-1)
+            labels = input_ids[:, 1:]
+            token_logprobs = torch.log_softmax(
+                logits,
+                dim=-1,
+            )
             selected = token_logprobs.gather(
                 -1,
                 labels.unsqueeze(-1),
             ).squeeze(-1)
 
-        # labels index i predicts token i+1; candidate starts after prompt token count.
-        start = max(prompt_ids.shape[1] - 1, 0)
-        candidate_logprobs = selected[:, start:]
+        start = max(
+            len(prompt_ids) - 1,
+            0,
+        )
+        values: list[float] = []
 
-        value = candidate_logprobs.sum().item()
-        if self.length_normalize:
-            value /= candidate_logprobs.shape[1]
+        for row, ids in enumerate(
+            candidate_ids
+        ):
+            end = start + len(ids)
+            continuation = selected[
+                row,
+                start:end,
+            ]
 
-        return float(value)
+            value = continuation.sum().item()
+            if self.length_normalize:
+                value /= len(ids)
+
+            values.append(float(value))
+
+        return values
+
+    def logprob(
+        self,
+        *,
+        prompt: str,
+        candidate: str,
+    ) -> float:
+        return self.logprobs(
+            prompt=prompt,
+            candidates=[candidate],
+        )[0]
