@@ -21,6 +21,7 @@
 - [x] separate calibration/test demo fixtures
 - [x] p50 / p95 latency reporting
 - [x] tokens-processed accounting
+- [x] test-score cache for raw/calibrated reuse
 - [ ] real labeled benchmark corpus
 - [ ] ambiguity/risk annotation guidelines
 
@@ -34,7 +35,8 @@
 - [x] real-model GitHub Actions workflow
 - [x] first captured Qwen3-0.6B real-model artifact
 - [x] same-base autoregressive structured-output adapter
-- [ ] captured Frozen vs Structured same-base comparison artifact
+- [x] captured Frozen vs Structured same-base comparison artifact
+- [ ] optimized batched-Frozen vs Structured performance rerun
 - [ ] Decision LoRA
 - [ ] dedicated decision-head model
 - [ ] encoder baseline
