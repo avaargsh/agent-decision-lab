@@ -15,6 +15,9 @@ on:
         description: Test JSONL path
         required: true
         default: benchmarks/demo/tool_router.test.jsonl
+  push:
+    paths:
+      - ".github/model-benchmark.trigger"
 
 jobs:
   frozen-logits:
@@ -34,16 +37,27 @@ jobs:
         run: pip install -e ".[models]"
 
       - name: Run frozen-logits calibration and benchmark
+        env:
+          MODEL: ${{ inputs.model || 'Qwen/Qwen3-0.6B' }}
+          CALIBRATION: ${{ inputs.calibration || 'benchmarks/demo/tool_router.calibration.jsonl' }}
+          TEST_DATASET: ${{ inputs.test || 'benchmarks/demo/tool_router.test.jsonl' }}
         run: |
           mkdir -p reports
-          python examples/run_qwen_experiment.py             --model "${{ inputs.model }}"             --calibration "${{ inputs.calibration }}"             --test "${{ inputs.test }}"             --output reports/frozen-logits.json
+          python examples/run_qwen_experiment.py \
+            --model "$MODEL" \
+            --calibration "$CALIBRATION" \
+            --test "$TEST_DATASET" \
+            --output reports/frozen-logits.json
 
       - name: Capture environment
+        if: always()
         run: |
+          mkdir -p reports
           python --version > reports/environment.txt
           python -m pip freeze >> reports/environment.txt
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: frozen-logits-benchmark
           path: reports/
