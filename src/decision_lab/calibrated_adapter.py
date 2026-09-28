@@ -17,6 +17,19 @@ class CalibratedAdapter:
     def name(self) -> str:
         return f"{self.base.name}+calibrated"
 
+    @property
+    def last_tokens_processed(self) -> int | None:
+        value = getattr(
+            self.base,
+            "last_tokens_processed",
+            None,
+        )
+        return (
+            int(value)
+            if value is not None
+            else None
+        )
+
     def score(
         self,
         request: DecisionRequest,
