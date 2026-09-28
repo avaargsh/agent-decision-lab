@@ -24,6 +24,7 @@ otel = [
 
 [project.scripts]
 decision-lab = "decision_lab.cli:main"
+decision-lab-server = "decision_lab.server:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
