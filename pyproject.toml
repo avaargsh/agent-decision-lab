@@ -13,6 +13,9 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 
+[project.scripts]
+decision-lab = "decision_lab.cli:main"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
