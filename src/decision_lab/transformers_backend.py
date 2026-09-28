@@ -39,6 +39,7 @@ class TransformersCausalLMBackend:
             **kwargs,
         )
         self._model.eval()
+        self.last_tokens_processed = 0
 
     def logprob(self, *, prompt: str, candidate: str) -> float:
         torch = self._torch
@@ -59,6 +60,12 @@ class TransformersCausalLMBackend:
 
         if full_ids.shape[1] <= prompt_ids.shape[1]:
             raise ValueError("candidate produced no additional tokens")
+
+        # This is compute accounting for the reference implementation:
+        # every candidate is currently scored in a separate forward pass.
+        self.last_tokens_processed = int(
+            full_ids.numel()
+        )
 
         device = next(model.parameters()).device
         full_ids = full_ids.to(device)
