@@ -1,4 +1,4 @@
 model=Qwen/Qwen3-0.6B
 calibration=benchmarks/demo/tool_router.calibration.jsonl
 test=benchmarks/demo/tool_router.test.jsonl
-requested=first-real-model-run
+requested=real-model-run-v2-p50-p95-token-accounting
