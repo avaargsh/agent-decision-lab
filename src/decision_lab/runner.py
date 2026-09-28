@@ -133,7 +133,21 @@ def run_benchmark(
             ) as case_span:
                 started = time.perf_counter()
                 scores = list(adapter.score(request))
-                latency_ms = (time.perf_counter() - started) * 1000.0
+                measured_latency_ms = (
+                    time.perf_counter() - started
+                ) * 1000.0
+
+                adapter_latency_ms = getattr(
+                    adapter,
+                    "last_latency_ms",
+                    None,
+                )
+                latency_ms = (
+                    float(adapter_latency_ms)
+                    if adapter_latency_ms is not None
+                    else measured_latency_ms
+                )
+
                 tokens_processed = getattr(
                     adapter,
                     "last_tokens_processed",
