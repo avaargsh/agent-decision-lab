@@ -29,20 +29,51 @@ class FrozenLogitAdapter:
     prompt_builder: callable
     name: str = "frozen-logits"
 
+    def __post_init__(self) -> None:
+        self.last_tokens_processed: int | None = None
+
     def score(self, request: DecisionRequest) -> Sequence[CandidateScore]:
         prompt = self.prompt_builder(request)
 
-        raw = [
-            self.backend.logprob(prompt=prompt, candidate=candidate)
-            for candidate in request.candidates
-        ]
+        raw: list[float] = []
+        total_tokens = 0
+        has_usage = False
+
+        for candidate in request.candidates:
+            raw.append(
+                self.backend.logprob(
+                    prompt=prompt,
+                    candidate=candidate,
+                )
+            )
+
+            usage = getattr(
+                self.backend,
+                "last_tokens_processed",
+                None,
+            )
+            if usage is not None:
+                total_tokens += int(usage)
+                has_usage = True
+
+        self.last_tokens_processed = (
+            total_tokens
+            if has_usage
+            else None
+        )
 
         max_value = max(raw)
-        exp_values = [math.exp(value - max_value) for value in raw]
+        exp_values = [
+            math.exp(value - max_value)
+            for value in raw
+        ]
         normalizer = sum(exp_values)
 
         return [
-            CandidateScore(candidate, value / normalizer)
+            CandidateScore(
+                candidate,
+                value / normalizer,
+            )
             for candidate, value in zip(
                 request.candidates,
                 exp_values,
@@ -61,6 +92,12 @@ def default_candidate_prompt(request: DecisionRequest) -> str:
     return (
         f"Decision type: {request.decision_type}\n"
         f"Candidates: {candidates}\n"
-        + ("Context:\n" + "\n".join(context_lines) + "\n" if context_lines else "")
+        + (
+            "Context:\n"
+            + "\n".join(context_lines)
+            + "\n"
+            if context_lines
+            else ""
+        )
         + "Choose exactly one candidate:\n"
     )
