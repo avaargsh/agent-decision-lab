@@ -18,13 +18,18 @@
 - [x] escalation seed dataset
 - [x] Risk-Coverage computation
 - [x] false automation analysis
+- [x] separate calibration/test demo fixtures
 - [ ] real labeled benchmark corpus
 - [ ] ambiguity/risk annotation guidelines
 
 ## v0.3 — Model adapters
 - [x] frozen-LM candidate-logit adapter
 - [x] optional Hugging Face causal-LM backend
-- [ ] fit temperature on calibration split
+- [x] temperature fitting on held-out calibration split
+- [x] calibrated adapter wrapper
+- [x] reproducible JSON experiment report
+- [x] manual real-model GitHub Actions workflow
+- [ ] first captured Qwen real-model benchmark artifact
 - [ ] Decision LoRA
 - [ ] dedicated decision-head model
 - [ ] encoder baseline
