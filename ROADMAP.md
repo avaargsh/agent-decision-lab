@@ -36,7 +36,7 @@
 - [x] first captured Qwen3-0.6B real-model artifact
 - [x] same-base autoregressive structured-output adapter
 - [x] captured Frozen vs Structured same-base comparison artifact
-- [ ] optimized batched-Frozen vs Structured performance rerun
+- [x] optimized batched-Frozen vs Structured performance rerun
 - [ ] Decision LoRA
 - [ ] dedicated decision-head model
 - [ ] encoder baseline
