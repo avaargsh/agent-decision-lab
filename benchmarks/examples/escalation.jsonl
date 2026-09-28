@@ -1,0 +1,3 @@
+{"case_id":"esc-001","decision_type":"escalation","context":{"confidence":0.97,"risk":"low","action":"read_metrics"},"candidates":["execute","fallback","human_review"],"gold_candidate":"execute","metadata":{"split":"dev","source":"synthetic"}}
+{"case_id":"esc-002","decision_type":"escalation","context":{"confidence":0.42,"risk":"low","action":"route_tool"},"candidates":["execute","fallback","human_review"],"gold_candidate":"fallback","metadata":{"split":"dev","source":"synthetic"}}
+{"case_id":"esc-003","decision_type":"escalation","context":{"confidence":0.88,"risk":"high","action":"restart_database"},"candidates":["execute","fallback","human_review"],"gold_candidate":"human_review","metadata":{"split":"dev","source":"synthetic"}}
