@@ -8,8 +8,8 @@
 - [x] audit-friendly decision ledger
 - [x] calibration interfaces
 - [x] JSONL benchmark format
-- [ ] benchmark runner
-- [ ] structured-output baseline adapter
+- [x] benchmark runner
+- [x] structured-output baseline adapter
 
 ## v0.2 — Benchmark
 - [x] MCP tool-routing seed dataset
@@ -27,8 +27,8 @@
 - [ ] vLLM / SGLang serving adapter
 
 ## v0.4 — Decision SDK
-- [ ] HTTP /decision API
-- [ ] fallback provider interface
+- [x] HTTP /decision API
+- [x] fallback provider interface
 - [ ] policy hook
 - [ ] OpenTelemetry spans
-- [ ] replayable Decision Ledger
+- [x] replayable Decision Ledger record format
