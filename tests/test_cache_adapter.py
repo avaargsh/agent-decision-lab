@@ -64,7 +64,7 @@ def test_cache_adapter_reuses_scores() -> None:
     assert cache.last_latency_ms == first_latency
 
 
-def test_calibrated_experiment_does_not_repeat_test_inference() -> None:
+def test_calibrated_experiment_reuses_identical_case_scores() -> None:
     base = CountingAdapter()
 
     run_calibrated_experiment(
@@ -73,6 +73,7 @@ def test_calibrated_experiment_does_not_repeat_test_inference() -> None:
         test_cases=cases(),
     )
 
-    # Two calibration cases + two test cases.
-    # The calibrated report reuses the test scores.
-    assert base.calls == 4
+    # Calibration and test fixtures are identical here. The experiment
+    # cache therefore performs one inference per unique DecisionRequest,
+    # and both raw/calibrated reports reuse those scores.
+    assert base.calls == 2
