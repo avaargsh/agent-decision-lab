@@ -27,6 +27,7 @@ class CaseResult:
     confidence: float
     correct: bool
     latency_ms: float
+    tokens_processed: int | None = None
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,7 @@ class BenchmarkReport:
     mean_latency_ms: float
     p50_latency_ms: float
     p95_latency_ms: float
+    mean_tokens_processed_per_decision: float | None
     coverage: list[CoveragePoint]
     cases: list[CaseResult]
 
@@ -132,6 +134,15 @@ def run_benchmark(
                 started = time.perf_counter()
                 scores = list(adapter.score(request))
                 latency_ms = (time.perf_counter() - started) * 1000.0
+                tokens_processed = getattr(
+                    adapter,
+                    "last_tokens_processed",
+                    None,
+                )
+                if tokens_processed is not None:
+                    tokens_processed = int(
+                        tokens_processed
+                    )
 
                 _validate_scores(
                     adapter_name=adapter.name,
@@ -164,6 +175,11 @@ def run_benchmark(
                     "decision.latency_ms",
                     latency_ms,
                 )
+                set_attribute(
+                    case_span,
+                    "decision.tokens_processed",
+                    tokens_processed,
+                )
 
                 results.append(
                     CaseResult(
@@ -173,6 +189,7 @@ def run_benchmark(
                         confidence=confidence,
                         correct=correct,
                         latency_ms=latency_ms,
+                        tokens_processed=tokens_processed,
                     )
                 )
                 predictions.append(
@@ -202,6 +219,17 @@ def run_benchmark(
         p95_latency_ms = _percentile(
             latencies,
             0.95,
+        )
+
+        token_counts = [
+            result.tokens_processed
+            for result in results
+            if result.tokens_processed is not None
+        ]
+        mean_tokens_processed = (
+            sum(token_counts) / len(token_counts)
+            if token_counts
+            else None
         )
 
         set_attribute(
@@ -234,6 +262,11 @@ def run_benchmark(
             "benchmark.p95_latency_ms",
             p95_latency_ms,
         )
+        set_attribute(
+            benchmark_span,
+            "benchmark.mean_tokens_processed_per_decision",
+            mean_tokens_processed,
+        )
 
         return BenchmarkReport(
             adapter=adapter.name,
@@ -243,6 +276,9 @@ def run_benchmark(
             mean_latency_ms=mean_latency_ms,
             p50_latency_ms=p50_latency_ms,
             p95_latency_ms=p95_latency_ms,
+            mean_tokens_processed_per_decision=(
+                mean_tokens_processed
+            ),
             coverage=risk_coverage(
                 predictions,
                 thresholds=thresholds,
