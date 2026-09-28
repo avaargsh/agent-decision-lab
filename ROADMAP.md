@@ -6,18 +6,18 @@
 - [x] margin threshold
 - [x] structured decision result
 - [x] audit-friendly decision ledger
-- [ ] calibration interfaces
-- [ ] JSONL benchmark format
+- [x] calibration interfaces
+- [x] JSONL benchmark format
 - [ ] benchmark runner
 - [ ] structured-output baseline adapter
 
 ## v0.2 — Benchmark
-- [ ] MCP tool-routing dataset
+- [x] MCP tool-routing seed dataset
 - [ ] policy-gate dataset
 - [ ] severity / relevance dataset
 - [ ] escalation dataset
-- [ ] Risk-Coverage plots
-- [ ] false automation analysis
+- [x] Risk-Coverage computation
+- [x] false automation analysis
 
 ## v0.3 — Model adapters
 - [ ] frozen-LM candidate logits
