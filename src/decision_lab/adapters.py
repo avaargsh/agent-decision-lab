@@ -46,8 +46,12 @@ class StructuredOutputAdapter:
             raise ValueError("generated confidence must be between 0 and 1")
 
         remaining = [item for item in request.candidates if item != candidate]
+
+        if not remaining:
+            return [CandidateScore(candidate, 1.0)]
+
         remainder = 1.0 - confidence
-        share = remainder / len(remaining) if remaining else 0.0
+        share = remainder / len(remaining)
 
         return [
             CandidateScore(
