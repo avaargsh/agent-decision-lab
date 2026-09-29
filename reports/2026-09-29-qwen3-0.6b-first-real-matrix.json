@@ -1,0 +1,31 @@
+{
+  "schema_version": "v1",
+  "provenance": {
+    "model": "Qwen/Qwen3-0.6B",
+    "runner": "GitHub-hosted Linux x64 CPU",
+    "workflow_run": "36385800372",
+    "source_commit": "ebde08c56379d1bce7d9134a0bc3aa88729d3957",
+    "dataset": "synthetic 4-case tool-router test",
+    "purpose": "implementation-performance comparison only"
+  },
+  "arms": [
+    {
+      "arm": "A-logits",
+      "adapter": "batched-frozen-candidate-logits",
+      "accuracy": 0.5,
+      "brier": 0.1849,
+      "ece": 0.2119,
+      "p95_latency_ms": 917.19,
+      "mean_tokens_processed_per_decision": 125.5
+    },
+    {
+      "arm": "E-structured",
+      "adapter": "autoregressive-structured-output",
+      "accuracy": 0.5,
+      "brier": 0.19,
+      "ece": 0.15,
+      "p95_latency_ms": 4619.10,
+      "mean_tokens_processed_per_decision": 101.5
+    }
+  ]
+}
