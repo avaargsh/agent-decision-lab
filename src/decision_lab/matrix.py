@@ -11,6 +11,8 @@ class BenchmarkArmSummary:
     arm: str
     adapter: str
     accuracy: float
+    macro_f1: float
+    nll: float
     brier: float
     ece: float
     p95_latency_ms: float
@@ -29,6 +31,8 @@ def build_benchmark_matrix(
             arm=arm,
             adapter=report.adapter,
             accuracy=report.accuracy,
+            macro_f1=report.macro_f1,
+            nll=report.nll,
             brier=report.brier,
             ece=report.ece,
             p95_latency_ms=report.p95_latency_ms,
