@@ -6,7 +6,13 @@ from dataclasses import dataclass
 from typing import Protocol, Sequence
 
 from .benchmark import BenchmarkCase
-from .metrics import Prediction, brier_score, expected_calibration_error
+from .metrics import (
+    Prediction,
+    brier_score,
+    expected_calibration_error,
+    macro_f1,
+    multiclass_nll,
+)
 from .models import CandidateScore, DecisionRequest
 from .selective import CoveragePoint, risk_coverage
 from .telemetry import set_attribute, span
@@ -28,6 +34,7 @@ class CaseResult:
     correct: bool
     latency_ms: float
     tokens_processed: int | None = None
+    gold_probability: float | None = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +49,8 @@ class BenchmarkReport:
     mean_tokens_processed_per_decision: float | None
     coverage: list[CoveragePoint]
     cases: list[CaseResult]
+    macro_f1: float = 0.0
+    nll: float = 0.0
 
 
 def _percentile(
@@ -173,6 +182,11 @@ def run_benchmark(
                 predicted = ranked[0].candidate
                 confidence = ranked[0].probability
                 correct = predicted == case.gold_candidate
+                gold_probability = next(
+                    score.probability
+                    for score in scores
+                    if score.candidate == case.gold_candidate
+                )
 
                 set_attribute(
                     case_span,
@@ -204,6 +218,7 @@ def run_benchmark(
                         correct=correct,
                         latency_ms=latency_ms,
                         tokens_processed=tokens_processed,
+                        gold_probability=gold_probability,
                     )
                 )
                 predictions.append(
@@ -218,6 +233,17 @@ def run_benchmark(
         ) / len(results)
         brier = brier_score(predictions)
         ece = expected_calibration_error(predictions)
+        report_macro_f1 = macro_f1(
+            [result.gold for result in results],
+            [result.predicted for result in results],
+        )
+        nll = multiclass_nll(
+            [
+                result.gold_probability
+                for result in results
+                if result.gold_probability is not None
+            ]
+        )
 
         latencies = [
             result.latency_ms
@@ -263,6 +289,16 @@ def run_benchmark(
         )
         set_attribute(
             benchmark_span,
+            "benchmark.macro_f1",
+            report_macro_f1,
+        )
+        set_attribute(
+            benchmark_span,
+            "benchmark.nll",
+            nll,
+        )
+        set_attribute(
+            benchmark_span,
             "benchmark.mean_latency_ms",
             mean_latency_ms,
         )
@@ -298,4 +334,6 @@ def run_benchmark(
                 thresholds=thresholds,
             ),
             cases=results,
+            macro_f1=report_macro_f1,
+            nll=nll,
         )

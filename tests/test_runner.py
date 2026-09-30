@@ -31,6 +31,8 @@ def test_benchmark_runner_perfect_mapping() -> None:
 
     report = run_benchmark(MappingScoreAdapter(mapping), CASES)
     assert report.accuracy == 1.0
+    assert report.macro_f1 == 1.0
+    assert report.nll > 0.0
     assert len(report.cases) == 2
 
 
