@@ -115,17 +115,26 @@ python examples/run_qwen_comparison.py \
 ```
 
 The report records fallback case count/rate, accuracy, p50/p95 latency, token
-usage and per-case fast-vs-System-2 outcomes. When exported, those measurements
-are sealed into `decision-eval/v1` with `fallback_evaluation.measured=true`.
+usage, structured-output parse validity and per-case fast-vs-System-2 outcomes.
+When exported, those measurements are sealed into `decision-eval/v1` with
+`fallback_evaluation.measured=true`.
+
+Structured generation returns both an explicit candidate and a self-reported
+confidence. The explicit candidate remains the top-1 decision even when the
+reported confidence is below the uniform prior; low confidence is represented as
+a near-uniform distribution rather than silently changing the model's chosen
+candidate. This keeps calibration compatible with the candidate-score API without
+corrupting structured-output accuracy.
 
 The bundled benchmark remains synthetic. A measured fallback run proves the
 execution and evidence path, not production routing quality.
 
 ## Model-enabled CI experiment
 
-Normal pull-request CI remains model-free and fast. A separate manual GitHub
-Actions workflow, `qwen-measured-fallback`, is the reproducible model-enabled
-path for M4.
+Normal pull-request CI remains model-free and fast. A separate GitHub Actions
+workflow, `qwen-measured-fallback`, is the reproducible model-enabled path for
+M4. It can be started manually or by an explicit change to
+`.github/qwen-measured-fallback.trigger`.
 
 It loads the selected Qwen model, runs the fixed calibration/test splits, executes
 the autoregressive System-2 path only for cases below the selected confidence
@@ -134,8 +143,9 @@ threshold, verifies that at least one fallback case actually ran, and uploads:
 - `qwen-comparison.json`
 - `decision-eval.json`
 
-The workflow is deliberately `workflow_dispatch` only. Model downloads and CPU
-inference are not hidden inside ordinary PR checks.
+The trigger-file path is deliberately explicit. Model downloads and CPU inference
+are not hidden inside ordinary PR checks. Successful runs also retain the runner
+environment alongside the two JSON artifacts.
 
 ## Release-gate eval artifact
 

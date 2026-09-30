@@ -2,9 +2,50 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+import math
 from typing import Callable, Mapping, Sequence
 
 from .models import CandidateScore, DecisionRequest
+
+
+def structured_choice_scores(
+    *,
+    candidate: str,
+    confidence: float,
+    candidates: Sequence[str],
+) -> list[CandidateScore]:
+    """Convert an explicit structured choice into a probability distribution.
+
+    Generated confidence is treated as self-reported probability only when it
+    is above the uniform prior. Lower values mean nearly uniform, but the
+    explicitly generated candidate must remain top-1 so evaluation does not
+    silently replace the model choice with candidate-list order.
+    """
+    if not candidates:
+        raise ValueError("candidates must not be empty")
+    if candidate not in candidates:
+        raise ValueError(f"generated unknown candidate: {candidate}")
+    if not 0.0 <= confidence <= 1.0:
+        raise ValueError("generated confidence must be between 0 and 1")
+
+    if len(candidates) == 1:
+        return [CandidateScore(candidate, 1.0)]
+
+    uniform = 1.0 / len(candidates)
+    selected_probability = max(confidence, uniform)
+    if selected_probability == uniform:
+        selected_probability = math.nextafter(uniform, 1.0)
+
+    remaining_probability = 1.0 - selected_probability
+    share = remaining_probability / (len(candidates) - 1)
+
+    return [
+        CandidateScore(
+            item,
+            selected_probability if item == candidate else share,
+        )
+        for item in candidates
+    ]
 
 
 @dataclass
@@ -45,18 +86,8 @@ class StructuredOutputAdapter:
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("generated confidence must be between 0 and 1")
 
-        remaining = [item for item in request.candidates if item != candidate]
-
-        if not remaining:
-            return [CandidateScore(candidate, 1.0)]
-
-        remainder = 1.0 - confidence
-        share = remainder / len(remaining)
-
-        return [
-            CandidateScore(
-                item,
-                confidence if item == candidate else share,
-            )
-            for item in request.candidates
-        ]
+        return structured_choice_scores(
+            candidate=candidate,
+            confidence=confidence,
+            candidates=request.candidates,
+        )

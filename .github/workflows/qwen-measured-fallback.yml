@@ -14,6 +14,10 @@ on:
         default: "0.80"
         type: string
 
+  push:
+    paths:
+      - ".github/qwen-measured-fallback.trigger"
+
 jobs:
   measured-fallback:
     runs-on: ubuntu-latest
@@ -21,6 +25,8 @@ jobs:
     env:
       HF_HOME: ${{ github.workspace }}/.cache/huggingface
       TOKENIZERS_PARALLELISM: "false"
+      MODEL: ${{ inputs.model || 'Qwen/Qwen3-0.6B' }}
+      FALLBACK_THRESHOLD: ${{ inputs.fallback_threshold || '0.80' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +38,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/huggingface
-          key: hf-${{ runner.os }}-${{ inputs.model }}
+          key: hf-${{ runner.os }}-${{ env.MODEL }}
 
       - name: Install model experiment dependencies
         run: |
@@ -43,23 +49,29 @@ jobs:
         run: |
           mkdir -p artifacts
           python examples/run_qwen_comparison.py \
-            --model "${{ inputs.model }}" \
+            --model "$MODEL" \
             --calibration benchmarks/mcp_tool_router/v1.calibration.jsonl \
             --test benchmarks/mcp_tool_router/v1.test.jsonl \
-            --fallback-threshold "${{ inputs.fallback_threshold }}" \
+            --fallback-threshold "$FALLBACK_THRESHOLD" \
             --output artifacts/qwen-comparison.json \
             --eval-artifact artifacts/decision-eval.json
 
-      - name: Verify measured fallback was actually exercised
+      - name: Verify measured fallback evidence
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
 
+          from decision_lab.eval_artifact import verify_eval_artifact
+
+          report = json.loads(
+              Path("artifacts/qwen-comparison.json").read_text(encoding="utf-8")
+          )
           artifact = json.loads(
               Path("artifacts/decision-eval.json").read_text(encoding="utf-8")
           )
-          fallback = artifact["fallback_evaluation"]
+          fallback = report["system2_fallback"]
+
           if fallback.get("measured") is not True:
               raise SystemExit("fallback_evaluation.measured is not true")
           if fallback.get("fallback_case_count", 0) <= 0:
@@ -67,18 +79,43 @@ jobs:
                   "selected threshold exercised zero System-2 fallback cases; "
                   "choose a higher threshold and rerun"
               )
+          for field in (
+              "p50_latency_ms",
+              "p95_latency_ms",
+              "mean_tokens_processed",
+              "parse_valid_rate",
+          ):
+              if fallback.get(field) is None:
+                  raise SystemExit(f"missing measured fallback field: {field}")
+
+          calibration_sha256 = artifact.get("calibration_sha256")
+          if not (
+              isinstance(calibration_sha256, str)
+              and calibration_sha256.startswith("sha256:")
+          ):
+              raise SystemExit("calibration SHA-256 provenance is missing")
+          if artifact["fallback_evaluation"].get("measured") is not True:
+              raise SystemExit("sealed fallback evidence is not measured")
+          if not verify_eval_artifact(artifact):
+              raise SystemExit("decision-eval artifact digest verification failed")
+
           print(
               json.dumps(
                   {
                       "artifact_id": artifact["artifact_id"],
                       "model_ref": artifact.get("model_ref"),
+                      "calibration_sha256": calibration_sha256,
                       "dataset_sha256": artifact["dataset"]["sha256"],
                       "fallback_case_count": fallback["fallback_case_count"],
                       "fallback_rate": fallback["fallback_rate"],
                       "fallback_accuracy": fallback["accuracy"],
+                      "fallback_p50_latency_ms": fallback["p50_latency_ms"],
                       "fallback_p95_latency_ms": fallback["p95_latency_ms"],
                       "fallback_mean_tokens_processed": fallback[
                           "mean_tokens_processed"
+                      ],
+                      "fallback_parse_valid_rate": fallback[
+                          "parse_valid_rate"
                       ],
                   },
                   indent=2,
@@ -86,12 +123,35 @@ jobs:
           )
           PY
 
+      - name: Capture execution environment
+        if: always()
+        run: |
+          {
+            echo "github_sha=$GITHUB_SHA"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "model=$MODEL"
+            echo "fallback_threshold=$FALLBACK_THRESHOLD"
+            echo "--- python ---"
+            python --version
+            echo "--- uname ---"
+            uname -a
+            echo "--- cpu ---"
+            lscpu || true
+            echo "--- memory ---"
+            free -h || true
+            echo "--- gpu ---"
+            nvidia-smi || true
+          } > artifacts/environment.txt
+
       - name: Upload measured experiment artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: qwen-measured-fallback-${{ github.run_id }}
           path: |
             artifacts/qwen-comparison.json
             artifacts/decision-eval.json
-          if-no-files-found: error
+            artifacts/environment.txt
+          if-no-files-found: warn
           retention-days: 30

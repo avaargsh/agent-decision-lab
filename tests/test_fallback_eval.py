@@ -40,6 +40,7 @@ def test_only_low_confidence_cases_execute_system2():
         )
     )
     fallback.last_tokens_processed = 42
+    fallback.last_parse_valid = True
 
     measured = evaluate_system2_fallback(
         report,
@@ -52,6 +53,8 @@ def test_only_low_confidence_cases_execute_system2():
     assert measured.fallback_case_count == 1
     assert measured.fallback_rate == 0.5
     assert measured.accuracy == 1.0
+    assert measured.parse_valid_rate == 1.0
+    assert measured.cases[0].parse_valid is True
     assert measured.cases[0].case_id == "low"
     assert measured.cases[0].fast_predicted == "prometheus.query"
     assert measured.cases[0].fallback_predicted == "logs.search"
@@ -82,3 +85,38 @@ def test_no_low_confidence_cases_is_still_a_measured_run():
     assert measured.measured is True
     assert measured.fallback_case_count == 0
     assert measured.accuracy is None
+    assert measured.parse_valid_rate is None
+
+
+
+def test_parse_valid_rate_tracks_structured_output_failures():
+    fast = MappingScoreAdapter(
+        lambda request: {
+            "prometheus.query": 0.55,
+            "logs.search": 0.45,
+        }
+    )
+    report = run_benchmark(fast, CASES[:1])
+
+    class InvalidStructuredFallback(MappingScoreAdapter):
+        def score(self, request):
+            self.last_parse_valid = False
+            return super().score(request)
+
+    fallback = InvalidStructuredFallback(
+        lambda request: {
+            "prometheus.query": 0.5,
+            "logs.search": 0.5,
+        }
+    )
+
+    measured = evaluate_system2_fallback(
+        report,
+        CASES[:1],
+        fallback,
+        threshold=0.8,
+    )
+
+    assert measured.fallback_case_count == 1
+    assert measured.parse_valid_rate == 0.0
+    assert measured.cases[0].parse_valid is False

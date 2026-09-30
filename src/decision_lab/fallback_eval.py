@@ -27,6 +27,7 @@ class FallbackCaseResult:
     correct: bool
     latency_ms: float
     tokens_processed: int | None
+    parse_valid: bool | None
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class FallbackEvaluation:
     p50_latency_ms: float | None
     p95_latency_ms: float | None
     mean_tokens_processed: float | None
+    parse_valid_rate: float | None
     cases: tuple[FallbackCaseResult, ...]
 
     def artifact_payload(self) -> dict:
@@ -102,6 +104,7 @@ def evaluate_system2_fallback(
 
         predicted = max(scores, key=lambda score: score.probability).candidate
         tokens = getattr(fallback, "last_tokens_processed", None)
+        parse_valid = getattr(fallback, "last_parse_valid", None)
         results.append(
             FallbackCaseResult(
                 case_id=case.case_id,
@@ -112,6 +115,11 @@ def evaluate_system2_fallback(
                 correct=predicted == case.gold_candidate,
                 latency_ms=latency_ms,
                 tokens_processed=int(tokens) if tokens is not None else None,
+                parse_valid=(
+                    bool(parse_valid)
+                    if parse_valid is not None
+                    else None
+                ),
             )
         )
 
@@ -128,6 +136,7 @@ def evaluate_system2_fallback(
             p50_latency_ms=None,
             p95_latency_ms=None,
             mean_tokens_processed=None,
+            parse_valid_rate=None,
             cases=(),
         )
 
@@ -136,6 +145,11 @@ def evaluate_system2_fallback(
         result.tokens_processed
         for result in results
         if result.tokens_processed is not None
+    ]
+    parse_valid_flags = [
+        result.parse_valid
+        for result in results
+        if result.parse_valid is not None
     ]
     return FallbackEvaluation(
         measured=True,
@@ -150,6 +164,11 @@ def evaluate_system2_fallback(
         mean_tokens_processed=(
             sum(token_counts) / len(token_counts)
             if token_counts
+            else None
+        ),
+        parse_valid_rate=(
+            sum(parse_valid_flags) / len(parse_valid_flags)
+            if parse_valid_flags
             else None
         ),
         cases=tuple(results),
