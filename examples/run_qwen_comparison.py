@@ -100,17 +100,20 @@ fallback_evaluation = evaluate_system2_fallback(
     threshold=args.fallback_threshold,
 )
 
+calibration_provenance = dataset_provenance(
+    args.calibration,
+    calibration_cases,
+)
+test_provenance = dataset_provenance(
+    args.test,
+    test_cases,
+)
+
 payload = {
     "metadata": {
         "model": args.model,
-        "calibration_dataset": dataset_provenance(
-            args.calibration,
-            calibration_cases,
-        ),
-        "test_dataset": dataset_provenance(
-            args.test,
-            test_cases,
-        ),
+        "calibration_dataset": calibration_provenance,
+        "test_dataset": test_provenance,
         "warning": (
             "Synthetic benchmark data; model inference is real. "
             "Do not treat results as production-traffic quality."
@@ -140,15 +143,12 @@ payload = {
 }
 
 if args.eval_artifact:
-    test_provenance = dataset_provenance(
-        args.test,
-        test_cases,
-    )
     artifact = build_eval_artifact(
         frozen_calibrated,
         decision_type="mcp_tool_router",
         dataset=test_provenance,
         model_ref=args.model,
+        calibration_sha256=calibration_provenance["sha256"],
         fallback_evaluation=(
             fallback_evaluation.artifact_payload()
         ),
