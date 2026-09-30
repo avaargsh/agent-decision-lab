@@ -10,11 +10,11 @@ on:
       calibration:
         description: Calibration JSONL path
         required: true
-        default: benchmarks/demo/tool_router.calibration.jsonl
+        default: benchmarks/mcp_tool_router/v1.calibration.jsonl
       test:
         description: Test JSONL path
         required: true
-        default: benchmarks/demo/tool_router.test.jsonl
+        default: benchmarks/mcp_tool_router/v1.test.jsonl
   push:
     paths:
       - ".github/model-benchmark.trigger"
@@ -40,8 +40,8 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           MODEL: ${{ inputs.model || 'Qwen/Qwen3-0.6B' }}
-          CALIBRATION: ${{ inputs.calibration || 'benchmarks/demo/tool_router.calibration.jsonl' }}
-          TEST_DATASET: ${{ inputs.test || 'benchmarks/demo/tool_router.test.jsonl' }}
+          CALIBRATION: ${{ inputs.calibration || 'benchmarks/mcp_tool_router/v1.calibration.jsonl' }}
+          TEST_DATASET: ${{ inputs.test || 'benchmarks/mcp_tool_router/v1.test.jsonl' }}
         run: |
           mkdir -p reports
           python examples/run_qwen_comparison.py \
