@@ -107,8 +107,8 @@ a real second model generation pass, not a computed fallback-rate placeholder.
 ```bash
 python examples/run_qwen_comparison.py \
   --model Qwen/Qwen3-0.6B \
-  --calibration benchmarks/mcp_tool_router_v1_calibration.jsonl \
-  --test benchmarks/mcp_tool_router_v1_test.jsonl \
+  --calibration benchmarks/mcp_tool_router/v1.calibration.jsonl \
+  --test benchmarks/mcp_tool_router/v1.test.jsonl \
   --fallback-threshold 0.8 \
   --output qwen-comparison.json \
   --eval-artifact decision-eval.json
@@ -120,6 +120,22 @@ are sealed into `decision-eval/v1` with `fallback_evaluation.measured=true`.
 
 The bundled benchmark remains synthetic. A measured fallback run proves the
 execution and evidence path, not production routing quality.
+
+## Model-enabled CI experiment
+
+Normal pull-request CI remains model-free and fast. A separate manual GitHub
+Actions workflow, `qwen-measured-fallback`, is the reproducible model-enabled
+path for M4.
+
+It loads the selected Qwen model, runs the fixed calibration/test splits, executes
+the autoregressive System-2 path only for cases below the selected confidence
+threshold, verifies that at least one fallback case actually ran, and uploads:
+
+- `qwen-comparison.json`
+- `decision-eval.json`
+
+The workflow is deliberately `workflow_dispatch` only. Model downloads and CPU
+inference are not hidden inside ordinary PR checks.
 
 ## Release-gate eval artifact
 
