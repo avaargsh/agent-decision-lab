@@ -31,7 +31,7 @@ def report():
     def mapping(request):
         if request.context["intent"] == "metrics":
             return {"prometheus.query": 0.95, "logs.search": 0.05}
-        return {"prometheus.query": 0.15, "logs.search": 0.85}
+        return {"prometheus.query": 0.55, "logs.search": 0.45}
 
     return run_benchmark(
         MappingScoreAdapter(mapping),
