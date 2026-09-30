@@ -38,6 +38,7 @@ jobs:
 
       - name: Run same-base decision comparison
         env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           MODEL: ${{ inputs.model || 'Qwen/Qwen3-0.6B' }}
           CALIBRATION: ${{ inputs.calibration || 'benchmarks/demo/tool_router.calibration.jsonl' }}
           TEST_DATASET: ${{ inputs.test || 'benchmarks/demo/tool_router.test.jsonl' }}
