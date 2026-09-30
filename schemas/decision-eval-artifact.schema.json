@@ -91,34 +91,47 @@
       ],
       "properties": {
         "accuracy": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         },
         "macro_f1": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         },
         "nll": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "brier": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         },
         "ece": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         },
         "mean_latency_ms": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "p50_latency_ms": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "p95_latency_ms": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "mean_tokens_processed_per_decision": {
           "type": [
             "number",
             "null"
-          ]
+          ],
+          "minimum": 0
         }
       }
     },
@@ -138,25 +151,34 @@
       ],
       "properties": {
         "threshold": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         },
         "coverage": {
-          "type": "number"
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
         },
         "risk": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         },
         "false_automation_rate": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         },
         "fallback_rate": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         },
         "risk_budget": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         }
       }
     },
