@@ -7,6 +7,9 @@ from decision_lab.benchmark import load_jsonl
 from decision_lab.experiment import (
     run_calibrated_experiment,
 )
+from decision_lab.fallback_eval import (
+    evaluate_system2_fallback,
+)
 from decision_lab.logits import (
     FrozenLogitAdapter,
     default_candidate_prompt,
@@ -36,6 +39,11 @@ parser.add_argument(
 parser.add_argument(
     "--output",
     default="qwen-comparison.json",
+)
+parser.add_argument(
+    "--fallback-threshold",
+    type=float,
+    default=0.8,
 )
 args = parser.parse_args()
 
@@ -78,6 +86,13 @@ structured_fit, structured_raw, structured_calibrated = (
     )
 )
 
+fallback_evaluation = evaluate_system2_fallback(
+    frozen_calibrated,
+    test_cases,
+    structured,
+    threshold=args.fallback_threshold,
+)
+
 payload = {
     "metadata": {
         "model": args.model,
@@ -112,6 +127,9 @@ payload = {
             structured_calibrated
         ),
     },
+    "system2_fallback": (
+        fallback_evaluation.artifact_payload()
+    ),
 }
 
 Path(args.output).write_text(
@@ -131,6 +149,15 @@ print(
             ),
             "structured_accuracy": (
                 structured_raw.accuracy
+            ),
+            "fallback_case_count": (
+                fallback_evaluation.fallback_case_count
+            ),
+            "fallback_accuracy": (
+                fallback_evaluation.accuracy
+            ),
+            "fallback_p95_latency_ms": (
+                fallback_evaluation.p95_latency_ms
             ),
             "output": args.output,
         },
