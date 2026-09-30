@@ -4,6 +4,9 @@ from dataclasses import asdict
 from pathlib import Path
 
 from decision_lab.benchmark import load_jsonl
+from decision_lab.eval_artifact import (
+    build_eval_artifact,
+)
 from decision_lab.experiment import (
     run_calibrated_experiment,
 )
@@ -44,6 +47,10 @@ parser.add_argument(
     "--fallback-threshold",
     type=float,
     default=0.8,
+)
+parser.add_argument(
+    "--eval-artifact",
+    default=None,
 )
 args = parser.parse_args()
 
@@ -132,6 +139,29 @@ payload = {
     ),
 }
 
+if args.eval_artifact:
+    test_provenance = dataset_provenance(
+        args.test,
+        test_cases,
+    )
+    artifact = build_eval_artifact(
+        frozen_calibrated,
+        decision_type="mcp_tool_router",
+        dataset=test_provenance,
+        model_ref=args.model,
+        fallback_evaluation=(
+            fallback_evaluation.artifact_payload()
+        ),
+    )
+    Path(args.eval_artifact).write_text(
+        json.dumps(
+            artifact,
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
 Path(args.output).write_text(
     json.dumps(
         payload,
@@ -160,6 +190,7 @@ print(
                 fallback_evaluation.p95_latency_ms
             ),
             "output": args.output,
+            "eval_artifact": args.eval_artifact,
         },
         indent=2,
     )
