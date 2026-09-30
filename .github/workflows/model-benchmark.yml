@@ -57,6 +57,36 @@ jobs:
             --output reports/qwen-comparison.json \
             --eval-artifact reports/decision-eval.json
 
+      - name: Validate measured fallback evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from decision_lab.eval_artifact import verify_eval_artifact
+
+          report = json.loads(
+              Path("reports/qwen-comparison.json").read_text(encoding="utf-8")
+          )
+          artifact = json.loads(
+              Path("reports/decision-eval.json").read_text(encoding="utf-8")
+          )
+
+          fallback = report["system2_fallback"]
+          assert fallback["measured"] is True, fallback
+          assert fallback["fallback_case_count"] > 0, fallback
+          assert fallback["p50_latency_ms"] is not None, fallback
+          assert fallback["p95_latency_ms"] is not None, fallback
+          assert fallback["mean_tokens_processed"] is not None, fallback
+          assert fallback["parse_valid_rate"] is not None, fallback
+
+          assert artifact["fallback_evaluation"]["measured"] is True, artifact
+          assert artifact["fallback_evaluation"]["fallback_case_count"] > 0, artifact
+          assert artifact["calibration_sha256"].startswith("sha256:"), artifact
+          assert artifact["dataset"]["case_count"] > 0, artifact
+          assert verify_eval_artifact(artifact), artifact
+          PY
+
       - name: Capture environment and hardware
         if: always()
         run: |
