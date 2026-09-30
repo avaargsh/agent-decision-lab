@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from typing import Sequence
 
+from .adapters import structured_choice_scores
 from .models import CandidateScore, DecisionRequest
 
 
@@ -192,32 +193,8 @@ class TransformersStructuredOutputAdapter:
                 for candidate in request.candidates
             ]
 
-        remaining = [
-            item
-            for item in request.candidates
-            if item != candidate
-        ]
-
-        if not remaining:
-            return [
-                CandidateScore(
-                    candidate,
-                    1.0,
-                )
-            ]
-
-        share = (
-            1.0 - confidence
-        ) / len(remaining)
-
-        return [
-            CandidateScore(
-                item,
-                (
-                    confidence
-                    if item == candidate
-                    else share
-                ),
-            )
-            for item in request.candidates
-        ]
+        return structured_choice_scores(
+            candidate=candidate,
+            confidence=confidence,
+            candidates=request.candidates,
+        )
