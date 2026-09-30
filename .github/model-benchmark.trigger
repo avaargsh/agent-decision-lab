@@ -1,4 +1,5 @@
 model=Qwen/Qwen3-0.6B
-calibration=benchmarks/demo/tool_router.calibration.jsonl
-test=benchmarks/demo/tool_router.test.jsonl
-requested=real-model-run-v4-batched-frozen-cache-vs-structured
+calibration=benchmarks/mcp_tool_router/v1.calibration.jsonl
+test=benchmarks/mcp_tool_router/v1.test.jsonl
+fallback_threshold=0.8
+requested=measured-system2-fallback-v1
