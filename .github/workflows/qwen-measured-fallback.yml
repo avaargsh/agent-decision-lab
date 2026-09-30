@@ -1,0 +1,97 @@
+name: qwen-measured-fallback
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Hugging Face model id
+        required: true
+        default: Qwen/Qwen3-0.6B
+        type: string
+      fallback_threshold:
+        description: Confidence threshold below which System-2 runs
+        required: true
+        default: "0.80"
+        type: string
+
+jobs:
+  measured-fallback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HF_HOME: ${{ github.workspace }}/.cache/huggingface
+      TOKENIZERS_PARALLELISM: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache Hugging Face model files
+        uses: actions/cache@v4
+        with:
+          path: .cache/huggingface
+          key: hf-${{ runner.os }}-${{ inputs.model }}
+
+      - name: Install model experiment dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -e ".[models]"
+
+      - name: Run real Qwen fast-path plus System-2 fallback
+        run: |
+          mkdir -p artifacts
+          python examples/run_qwen_comparison.py \
+            --model "${{ inputs.model }}" \
+            --calibration benchmarks/mcp_tool_router/v1.calibration.jsonl \
+            --test benchmarks/mcp_tool_router/v1.test.jsonl \
+            --fallback-threshold "${{ inputs.fallback_threshold }}" \
+            --output artifacts/qwen-comparison.json \
+            --eval-artifact artifacts/decision-eval.json
+
+      - name: Verify measured fallback was actually exercised
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          artifact = json.loads(
+              Path("artifacts/decision-eval.json").read_text(encoding="utf-8")
+          )
+          fallback = artifact["fallback_evaluation"]
+          if fallback.get("measured") is not True:
+              raise SystemExit("fallback_evaluation.measured is not true")
+          if fallback.get("fallback_case_count", 0) <= 0:
+              raise SystemExit(
+                  "selected threshold exercised zero System-2 fallback cases; "
+                  "choose a higher threshold and rerun"
+              )
+          print(
+              json.dumps(
+                  {
+                      "artifact_id": artifact["artifact_id"],
+                      "model_ref": artifact.get("model_ref"),
+                      "dataset_sha256": artifact["dataset"]["sha256"],
+                      "fallback_case_count": fallback["fallback_case_count"],
+                      "fallback_rate": fallback["fallback_rate"],
+                      "fallback_accuracy": fallback["accuracy"],
+                      "fallback_p95_latency_ms": fallback["p95_latency_ms"],
+                      "fallback_mean_tokens_processed": fallback[
+                          "mean_tokens_processed"
+                      ],
+                  },
+                  indent=2,
+              )
+          )
+          PY
+
+      - name: Upload measured experiment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qwen-measured-fallback-${{ github.run_id }}
+          path: |
+            artifacts/qwen-comparison.json
+            artifacts/decision-eval.json
+          if-no-files-found: error
+          retention-days: 30
