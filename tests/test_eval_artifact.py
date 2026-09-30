@@ -245,3 +245,98 @@ def test_verify_rejects_semantic_mismatch_even_when_digest_is_resealed():
     _reseal(artifact)
 
     assert not verify_eval_artifact(artifact)
+
+
+
+def test_build_rejects_fallback_case_at_or_above_threshold():
+    fallback = measured_fallback()
+    fallback["cases"][0]["fast_confidence"] = 0.8
+
+    with pytest.raises(
+        ValueError,
+        match="fast_confidence must be below threshold",
+    ):
+        build_eval_artifact(
+            report(),
+            decision_type="mcp_tool_router",
+            dataset=dataset(),
+            fallback_evaluation=fallback,
+        )
+
+
+def test_verify_rejects_resealed_high_confidence_fallback_case():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+        fallback_evaluation=measured_fallback(),
+    )
+    artifact["fallback_evaluation"]["cases"][0][
+        "fast_confidence"
+    ] = 0.95
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("coverage", 1.1),
+        ("fallback_rate", -0.1),
+        ("risk", 1.1),
+        ("risk_budget", 1.1),
+    ],
+)
+def test_verify_rejects_resealed_out_of_range_operating_point(
+    field,
+    value,
+):
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+    )
+    artifact["operating_point"][field] = value
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+def test_verify_rejects_resealed_operating_coverage_fallback_mismatch():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+    )
+    artifact["operating_point"]["fallback_rate"] = 0.25
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+def test_verify_rejects_resealed_operating_false_automation_mismatch():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+    )
+    artifact["operating_point"]["false_automation_rate"] = 0.25
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+def test_verify_rejects_resealed_operating_risk_over_budget():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+    )
+    artifact["operating_point"]["risk"] = 0.25
+    artifact["operating_point"]["false_automation_rate"] = (
+        0.25 * artifact["operating_point"]["coverage"]
+    )
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
