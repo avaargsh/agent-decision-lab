@@ -245,3 +245,68 @@ def test_verify_rejects_semantic_mismatch_even_when_digest_is_resealed():
     _reseal(artifact)
 
     assert not verify_eval_artifact(artifact)
+
+
+
+def test_build_rejects_malformed_calibration_digest():
+    with pytest.raises(
+        ValueError,
+        match="calibration_sha256",
+    ):
+        build_eval_artifact(
+            report(),
+            decision_type="mcp_tool_router",
+            dataset=dataset(),
+            calibration_sha256="sha256:not-a-digest",
+        )
+
+
+def test_build_rejects_short_dataset_digest():
+    bad = dataset()
+    bad["sha256"] = "sha256:abc"
+
+    with pytest.raises(
+        ValueError,
+        match="dataset.sha256",
+    ):
+        build_eval_artifact(
+            report(),
+            decision_type="mcp_tool_router",
+            dataset=bad,
+        )
+
+
+def test_verify_rejects_resealed_negative_latency():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+    )
+    artifact["metrics"]["p95_latency_ms"] = -1.0
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+def test_verify_rejects_resealed_operating_rate_out_of_range():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+    )
+    artifact["operating_point"]["coverage"] = 1.5
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+def test_verify_rejects_resealed_unknown_top_level_field():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+    )
+    artifact["unexpected"] = "value"
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
