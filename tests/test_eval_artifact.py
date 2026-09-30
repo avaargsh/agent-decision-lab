@@ -1,3 +1,8 @@
+import hashlib
+import json
+
+import pytest
+
 from decision_lab.adapters import MappingScoreAdapter
 from decision_lab.benchmark import BenchmarkCase
 from decision_lab.eval_artifact import (
@@ -130,4 +135,113 @@ def test_eval_artifact_seals_measured_fallback_metrics():
     assert verify_eval_artifact(artifact)
 
     artifact["fallback_evaluation"]["accuracy"] = 0.0
+    assert not verify_eval_artifact(artifact)
+
+
+
+def _reseal(artifact):
+    payload = {
+        key: value
+        for key, value in artifact.items()
+        if key not in {"artifact_id", "content_digest"}
+    }
+    canonical = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    digest = "sha256:" + hashlib.sha256(canonical).hexdigest()
+    artifact["content_digest"] = digest
+    artifact["artifact_id"] = "decision-eval:" + digest
+    return artifact
+
+
+def measured_fallback():
+    return {
+        "measured": True,
+        "adapter": "transformers-structured-output",
+        "threshold": 0.8,
+        "eligible_case_count": 2,
+        "fallback_case_count": 1,
+        "fallback_rate": 0.5,
+        "accuracy": 1.0,
+        "p50_latency_ms": 22.0,
+        "p95_latency_ms": 22.0,
+        "mean_tokens_processed": 48.0,
+        "parse_valid_rate": 1.0,
+        "cases": [
+            {
+                "case_id": "route-logs",
+                "fast_confidence": 0.55,
+                "fast_predicted": "prometheus.query",
+                "fallback_predicted": "logs.search",
+                "gold": "logs.search",
+                "correct": True,
+                "latency_ms": 22.0,
+                "tokens_processed": 48,
+                "parse_valid": True,
+            }
+        ],
+    }
+
+
+def test_build_rejects_inconsistent_fallback_rate():
+    fallback = measured_fallback()
+    fallback["fallback_rate"] = 0.9
+
+    with pytest.raises(
+        ValueError,
+        match="fallback_rate does not match",
+    ):
+        build_eval_artifact(
+            report(),
+            decision_type="mcp_tool_router",
+            dataset=dataset(),
+            fallback_evaluation=fallback,
+        )
+
+
+def test_build_rejects_fallback_case_outside_dataset():
+    fallback = measured_fallback()
+    fallback["cases"][0]["case_id"] = "unknown-case"
+
+    with pytest.raises(
+        ValueError,
+        match="case_id must belong to dataset",
+    ):
+        build_eval_artifact(
+            report(),
+            decision_type="mcp_tool_router",
+            dataset=dataset(),
+            fallback_evaluation=fallback,
+        )
+
+
+def test_build_rejects_inconsistent_fallback_accuracy():
+    fallback = measured_fallback()
+    fallback["accuracy"] = 0.0
+
+    with pytest.raises(
+        ValueError,
+        match="accuracy does not match",
+    ):
+        build_eval_artifact(
+            report(),
+            decision_type="mcp_tool_router",
+            dataset=dataset(),
+            fallback_evaluation=fallback,
+        )
+
+
+def test_verify_rejects_semantic_mismatch_even_when_digest_is_resealed():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+        fallback_evaluation=measured_fallback(),
+    )
+    artifact["fallback_evaluation"]["fallback_rate"] = 0.75
+    _reseal(artifact)
+
     assert not verify_eval_artifact(artifact)
