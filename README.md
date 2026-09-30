@@ -98,6 +98,29 @@ See `docs/quickstart.md` and `docs/api.md` for the benchmark and HTTP contracts.
 
 Real-model comparison reports bind both calibration and test inputs to their exact SHA-256 bytes, case count and case IDs. This makes a reported metric replayable against the dataset revision that actually produced it instead of relying on a mutable file path alone.
 
+## Measured System-2 fallback
+
+The Qwen comparison path can now execute the autoregressive structured-output
+adapter only for fast-path cases below a selected confidence threshold. This is
+a real second model generation pass, not a computed fallback-rate placeholder.
+
+```bash
+python examples/run_qwen_comparison.py \
+  --model Qwen/Qwen3-0.6B \
+  --calibration benchmarks/mcp_tool_router_v1_calibration.jsonl \
+  --test benchmarks/mcp_tool_router_v1_test.jsonl \
+  --fallback-threshold 0.8 \
+  --output qwen-comparison.json \
+  --eval-artifact decision-eval.json
+```
+
+The report records fallback case count/rate, accuracy, p50/p95 latency, token
+usage and per-case fast-vs-System-2 outcomes. When exported, those measurements
+are sealed into `decision-eval/v1` with `fallback_evaluation.measured=true`.
+
+The bundled benchmark remains synthetic. A measured fallback run proves the
+execution and evidence path, not production routing quality.
+
 ## Release-gate eval artifact
 
 Benchmark output can be sealed as a provider-neutral `decision-eval/v1` artifact.
