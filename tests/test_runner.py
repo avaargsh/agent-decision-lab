@@ -51,7 +51,7 @@ def test_benchmark_runner_selects_risk_budget_operating_point() -> None:
 
     assert report.risk_budget == 0.0
     assert report.operating_point is not None
-    assert report.operating_point.threshold == 0.8
+    assert report.operating_point.threshold == 0.9
     assert report.operating_point.coverage == 0.5
     assert report.operating_point.fallback_rate == 0.5
     assert report.operating_point.false_automation_rate == 0.0
