@@ -223,8 +223,71 @@
         "cases": {
           "type": "array",
           "items": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "case_id",
+              "fast_confidence",
+              "fast_predicted",
+              "fallback_predicted",
+              "gold",
+              "correct",
+              "latency_ms",
+              "tokens_processed",
+              "parse_valid"
+            ],
+            "properties": {
+              "case_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fast_confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "fast_predicted": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fallback_predicted": {
+                "type": "string",
+                "minLength": 1
+              },
+              "gold": {
+                "type": "string",
+                "minLength": 1
+              },
+              "correct": {
+                "type": "boolean"
+              },
+              "latency_ms": {
+                "type": "number",
+                "minimum": 0
+              },
+              "tokens_processed": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "parse_valid": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
           }
+        },
+        "parse_valid_rate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
         }
       },
       "allOf": [
@@ -250,11 +313,13 @@
               "p50_latency_ms",
               "p95_latency_ms",
               "mean_tokens_processed",
+              "parse_valid_rate",
               "cases"
             ]
           }
         }
-      ]
+      ],
+      "additionalProperties": false
     }
   }
 }
