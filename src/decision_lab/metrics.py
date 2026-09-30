@@ -64,3 +64,62 @@ def expected_calibration_error(
         ece += (len(bucket) / total) * abs(accuracy - mean_confidence)
 
     return ece
+
+
+def multiclass_nll(gold_probabilities: Sequence[float]) -> float:
+    if not gold_probabilities:
+        raise ValueError("gold_probabilities must not be empty")
+
+    return sum(
+        -math.log(min(max(probability, 1e-12), 1.0))
+        for probability in gold_probabilities
+    ) / len(gold_probabilities)
+
+
+def macro_f1(
+    gold: Sequence[str],
+    predicted: Sequence[str],
+) -> float:
+    if not gold:
+        raise ValueError("gold must not be empty")
+    if len(gold) != len(predicted):
+        raise ValueError("gold and predicted must have equal length")
+
+    labels = sorted(set(gold) | set(predicted))
+    scores: list[float] = []
+    for label in labels:
+        true_positive = sum(
+            1
+            for actual, guess in zip(gold, predicted)
+            if actual == label and guess == label
+        )
+        false_positive = sum(
+            1
+            for actual, guess in zip(gold, predicted)
+            if actual != label and guess == label
+        )
+        false_negative = sum(
+            1
+            for actual, guess in zip(gold, predicted)
+            if actual == label and guess != label
+        )
+
+        precision_denominator = true_positive + false_positive
+        recall_denominator = true_positive + false_negative
+        precision = (
+            true_positive / precision_denominator
+            if precision_denominator
+            else 0.0
+        )
+        recall = (
+            true_positive / recall_denominator
+            if recall_denominator
+            else 0.0
+        )
+        scores.append(
+            2.0 * precision * recall / (precision + recall)
+            if precision + recall
+            else 0.0
+        )
+
+    return sum(scores) / len(scores)
