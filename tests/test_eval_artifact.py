@@ -340,3 +340,96 @@ def test_verify_rejects_resealed_operating_risk_over_budget():
     _reseal(artifact)
 
     assert not verify_eval_artifact(artifact)
+
+
+
+def test_verify_rejects_resealed_invalid_dataset_digest():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+    )
+    artifact["dataset"]["sha256"] = "sha256:not-a-real-digest"
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+def test_verify_rejects_resealed_invalid_calibration_digest():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+        calibration_sha256="sha256:" + "b" * 64,
+    )
+    artifact["calibration_sha256"] = "sha256:short"
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("accuracy", 1.1),
+        ("macro_f1", -0.1),
+        ("brier", 1.1),
+        ("ece", -0.1),
+        ("nll", -0.1),
+        ("mean_latency_ms", -1.0),
+        ("p50_latency_ms", -1.0),
+        ("p95_latency_ms", -1.0),
+        ("mean_tokens_processed_per_decision", -1.0),
+    ],
+)
+def test_verify_rejects_resealed_invalid_base_metric(field, value):
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+    )
+    artifact["metrics"][field] = value
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+def test_verify_rejects_resealed_inverted_latency_percentiles():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+    )
+    artifact["metrics"]["p50_latency_ms"] = 100.0
+    artifact["metrics"]["p95_latency_ms"] = 10.0
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+def test_build_rejects_invalid_dataset_digest():
+    bad = dataset()
+    bad["sha256"] = "sha256:short"
+
+    with pytest.raises(
+        ValueError,
+        match="dataset.sha256 must be a sha256",
+    ):
+        build_eval_artifact(
+            report(),
+            decision_type="mcp_tool_router",
+            dataset=bad,
+        )
+
+
+def test_build_rejects_invalid_calibration_digest():
+    with pytest.raises(
+        ValueError,
+        match="calibration_sha256 must be a sha256",
+    ):
+        build_eval_artifact(
+            report(),
+            decision_type="mcp_tool_router",
+            dataset=dataset(),
+            calibration_sha256="sha256:short",
+        )

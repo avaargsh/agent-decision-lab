@@ -20,6 +20,64 @@ def _is_number(value: object) -> bool:
     )
 
 
+def _is_sha256(value: object) -> bool:
+    if not isinstance(value, str) or not value.startswith("sha256:"):
+        return False
+    digest = value.removeprefix("sha256:")
+    return len(digest) == 64 and all(
+        char in "0123456789abcdef"
+        for char in digest
+    )
+
+
+def _metrics_semantics_error(
+    metrics: Mapping[str, Any],
+) -> str | None:
+    bounded = (
+        "accuracy",
+        "macro_f1",
+        "brier",
+        "ece",
+    )
+    for field in bounded:
+        value = metrics.get(field)
+        if not _is_number(value):
+            return f"metrics.{field} must be numeric"
+        if not 0.0 <= float(value) <= 1.0:
+            return f"metrics.{field} must be in [0, 1]"
+
+    for field in (
+        "nll",
+        "mean_latency_ms",
+        "p50_latency_ms",
+        "p95_latency_ms",
+    ):
+        value = metrics.get(field)
+        if not _is_number(value):
+            return f"metrics.{field} must be numeric"
+        if float(value) < 0.0:
+            return f"metrics.{field} must be non-negative"
+
+    tokens = metrics.get(
+        "mean_tokens_processed_per_decision"
+    )
+    if tokens is not None and (
+        not _is_number(tokens)
+        or float(tokens) < 0.0
+    ):
+        return (
+            "metrics.mean_tokens_processed_per_decision "
+            "must be null or non-negative"
+        )
+
+    if float(metrics["p50_latency_ms"]) > float(
+        metrics["p95_latency_ms"]
+    ):
+        return "metrics p50_latency_ms must not exceed p95_latency_ms"
+
+    return None
+
+
 def _percentile(values: list[float], quantile: float) -> float:
     ordered = sorted(values)
     if len(ordered) == 1:
@@ -308,15 +366,41 @@ def build_eval_artifact(
     """
     if not decision_type:
         raise ValueError("decision_type must not be empty")
+    if not isinstance(report.adapter, str) or not report.adapter:
+        raise ValueError("report.adapter must not be empty")
+    if model_ref is not None and (
+        not isinstance(model_ref, str) or not model_ref
+    ):
+        raise ValueError("model_ref must be null or a non-empty string")
+    if (
+        calibration_sha256 is not None
+        and not _is_sha256(calibration_sha256)
+    ):
+        raise ValueError("calibration_sha256 must be a sha256: digest")
 
-    dataset_sha256 = str(dataset.get("sha256", ""))
-    if not dataset_sha256.startswith("sha256:"):
+    dataset_sha256 = dataset.get("sha256")
+    if not _is_sha256(dataset_sha256):
         raise ValueError("dataset.sha256 must be a sha256: digest")
 
     case_ids = list(dataset.get("case_ids", []))
-    case_count = int(dataset.get("case_count", len(case_ids)))
+    raw_case_count = dataset.get("case_count", len(case_ids))
+    if (
+        isinstance(raw_case_count, bool)
+        or not isinstance(raw_case_count, int)
+    ):
+        raise ValueError("dataset case_count must be an integer")
+    case_count = raw_case_count
     report_case_ids = [case.case_id for case in report.cases]
 
+    if (
+        not case_ids
+        or len(set(case_ids)) != len(case_ids)
+        or not all(
+            isinstance(case_id, str) and case_id
+            for case_id in case_ids
+        )
+    ):
+        raise ValueError("dataset case_ids must be non-empty and unique")
     if case_count != len(case_ids):
         raise ValueError("dataset case_count does not match case_ids")
     if report_case_ids and report_case_ids != case_ids:
@@ -346,6 +430,23 @@ def build_eval_artifact(
     if fallback_error is not None:
         raise ValueError(fallback_error)
 
+    metrics_payload = {
+        "accuracy": report.accuracy,
+        "macro_f1": report.macro_f1,
+        "nll": report.nll,
+        "brier": report.brier,
+        "ece": report.ece,
+        "mean_latency_ms": report.mean_latency_ms,
+        "p50_latency_ms": report.p50_latency_ms,
+        "p95_latency_ms": report.p95_latency_ms,
+        "mean_tokens_processed_per_decision": (
+            report.mean_tokens_processed_per_decision
+        ),
+    }
+    metrics_error = _metrics_semantics_error(metrics_payload)
+    if metrics_error is not None:
+        raise ValueError(metrics_error)
+
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "decision_type": decision_type,
@@ -357,19 +458,7 @@ def build_eval_artifact(
             "case_ids": case_ids,
         },
         "calibration_sha256": calibration_sha256,
-        "metrics": {
-            "accuracy": report.accuracy,
-            "macro_f1": report.macro_f1,
-            "nll": report.nll,
-            "brier": report.brier,
-            "ece": report.ece,
-            "mean_latency_ms": report.mean_latency_ms,
-            "p50_latency_ms": report.p50_latency_ms,
-            "p95_latency_ms": report.p95_latency_ms,
-            "mean_tokens_processed_per_decision": (
-                report.mean_tokens_processed_per_decision
-            ),
-        },
+        "metrics": metrics_payload,
         "operating_point": operating_payload,
         "fallback_evaluation": fallback,
     }
@@ -402,13 +491,37 @@ def verify_eval_artifact(artifact: Mapping[str, Any]) -> bool:
     if actual != expected:
         return False
 
+    decision_type = artifact.get("decision_type")
+    adapter = artifact.get("adapter")
+    model_ref = artifact.get("model_ref")
+    calibration_sha256 = artifact.get("calibration_sha256")
+    if not isinstance(decision_type, str) or not decision_type:
+        return False
+    if not isinstance(adapter, str) or not adapter:
+        return False
+    if model_ref is not None and (
+        not isinstance(model_ref, str) or not model_ref
+    ):
+        return False
+    if (
+        calibration_sha256 is not None
+        and not _is_sha256(calibration_sha256)
+    ):
+        return False
+
     dataset = artifact.get("dataset")
+    metrics = artifact.get("metrics")
     operating = artifact.get("operating_point")
     fallback = artifact.get("fallback_evaluation")
-    if not isinstance(dataset, Mapping) or not isinstance(
-        fallback,
-        Mapping,
+    if (
+        not isinstance(dataset, Mapping)
+        or not isinstance(metrics, Mapping)
+        or not isinstance(fallback, Mapping)
     ):
+        return False
+    if not _is_sha256(dataset.get("sha256")):
+        return False
+    if _metrics_semantics_error(metrics) is not None:
         return False
     case_ids = dataset.get("case_ids")
     case_count = dataset.get("case_count")
