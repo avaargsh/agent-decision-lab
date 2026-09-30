@@ -47,7 +47,7 @@ def risk_coverage(
                 coverage=coverage,
                 risk=risk,
                 false_automation_rate=false_automation_rate,
-                fallback_rate=1.0 - coverage,
+                fallback_rate=(total - len(automated)) / total,
             )
         )
 
