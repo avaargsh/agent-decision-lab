@@ -40,7 +40,7 @@ def test_benchmark_runner_selects_risk_budget_operating_point() -> None:
     def mapping(request):
         if request.context["intent"] == "metrics":
             return {"a": 0.95, "b": 0.05}
-        return {"a": 0.45, "b": 0.55}
+        return {"a": 0.55, "b": 0.45}
 
     report = run_benchmark(
         MappingScoreAdapter(mapping),
