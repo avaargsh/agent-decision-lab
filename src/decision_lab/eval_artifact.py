@@ -36,11 +36,41 @@ def _percentile(values: list[float], quantile: float) -> float:
     )
 
 
+_FALLBACK_FIELDS = {
+    "measured",
+    "adapter",
+    "threshold",
+    "eligible_case_count",
+    "fallback_case_count",
+    "fallback_rate",
+    "accuracy",
+    "p50_latency_ms",
+    "p95_latency_ms",
+    "mean_tokens_processed",
+    "parse_valid_rate",
+    "cases",
+}
+_FALLBACK_CASE_FIELDS = {
+    "case_id",
+    "fast_confidence",
+    "fast_predicted",
+    "fallback_predicted",
+    "gold",
+    "correct",
+    "latency_ms",
+    "tokens_processed",
+    "parse_valid",
+}
+
+
 def _fallback_semantics_error(
     fallback: Mapping[str, Any],
     *,
     dataset_case_ids: list[str],
 ) -> str | None:
+    if not set(fallback).issubset(_FALLBACK_FIELDS):
+        return "fallback contains unsupported fields"
+
     measured = fallback.get("measured")
     if not isinstance(measured, bool):
         return "fallback.measured must be boolean"
@@ -102,6 +132,8 @@ def _fallback_semantics_error(
     for case in cases:
         if not isinstance(case, Mapping):
             return "fallback case must be an object"
+        if not set(case).issubset(_FALLBACK_CASE_FIELDS):
+            return "fallback case contains unsupported fields"
         case_id = case.get("case_id")
         if (
             not isinstance(case_id, str)
