@@ -219,12 +219,10 @@ def _fallback_semantics_error(
             or not 0.0 <= float(parse_rate) <= 1.0
         ):
             return "fallback parse_valid_rate must be in [0, 1]"
-        if len(parse_values) != fallback_count:
-            return "fallback parse_valid_rate requires per-case parse_valid"
+        if not parse_values:
+            return "fallback parse_valid_rate requires parse_valid cases"
         expected_parse_rate = (
-            sum(parse_values) / fallback_count
-            if fallback_count
-            else 0.0
+            sum(parse_values) / len(parse_values)
         )
         if not math.isclose(
             float(parse_rate),
