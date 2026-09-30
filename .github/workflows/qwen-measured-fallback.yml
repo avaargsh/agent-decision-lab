@@ -14,10 +14,6 @@ on:
         default: "0.80"
         type: string
 
-  push:
-    paths:
-      - ".github/qwen-measured-fallback.trigger"
-
 jobs:
   measured-fallback:
     runs-on: ubuntu-latest
