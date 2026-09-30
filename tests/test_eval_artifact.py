@@ -89,3 +89,45 @@ def test_eval_artifact_rejects_dataset_case_mismatch():
         assert "report cases" in str(exc)
     else:
         raise AssertionError("mismatched dataset provenance must fail")
+
+
+
+def test_eval_artifact_seals_measured_fallback_metrics():
+    fallback = {
+        "measured": True,
+        "adapter": "transformers-structured-output",
+        "threshold": 0.8,
+        "eligible_case_count": 2,
+        "fallback_case_count": 1,
+        "fallback_rate": 0.5,
+        "accuracy": 1.0,
+        "p50_latency_ms": 22.0,
+        "p95_latency_ms": 22.0,
+        "mean_tokens_processed": 48.0,
+        "cases": [
+            {
+                "case_id": "route-logs",
+                "fast_confidence": 0.55,
+                "fast_predicted": "prometheus.query",
+                "fallback_predicted": "logs.search",
+                "gold": "logs.search",
+                "correct": True,
+                "latency_ms": 22.0,
+                "tokens_processed": 48,
+            }
+        ],
+    }
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+        fallback_evaluation=fallback,
+    )
+
+    assert artifact["fallback_evaluation"]["measured"] is True
+    assert artifact["fallback_evaluation"]["fallback_case_count"] == 1
+    assert artifact["fallback_evaluation"]["accuracy"] == 1.0
+    assert verify_eval_artifact(artifact)
+
+    artifact["fallback_evaluation"]["accuracy"] = 0.0
+    assert not verify_eval_artifact(artifact)
