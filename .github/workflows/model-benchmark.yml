@@ -15,6 +15,10 @@ on:
         description: Test JSONL path
         required: true
         default: benchmarks/mcp_tool_router/v1.test.jsonl
+      fallback_threshold:
+        description: Confidence threshold for System-2 fallback
+        required: true
+        default: "0.8"
   push:
     paths:
       - ".github/model-benchmark.trigger"
@@ -42,13 +46,16 @@ jobs:
           MODEL: ${{ inputs.model || 'Qwen/Qwen3-0.6B' }}
           CALIBRATION: ${{ inputs.calibration || 'benchmarks/mcp_tool_router/v1.calibration.jsonl' }}
           TEST_DATASET: ${{ inputs.test || 'benchmarks/mcp_tool_router/v1.test.jsonl' }}
+          FALLBACK_THRESHOLD: ${{ inputs.fallback_threshold || '0.8' }}
         run: |
           mkdir -p reports
           python examples/run_qwen_comparison.py \
             --model "$MODEL" \
             --calibration "$CALIBRATION" \
             --test "$TEST_DATASET" \
-            --output reports/qwen-comparison.json
+            --fallback-threshold "$FALLBACK_THRESHOLD" \
+            --output reports/qwen-comparison.json \
+            --eval-artifact reports/decision-eval.json
 
       - name: Capture environment and hardware
         if: always()
