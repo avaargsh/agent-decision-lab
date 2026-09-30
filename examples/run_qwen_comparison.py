@@ -11,6 +11,7 @@ from decision_lab.logits import (
     FrozenLogitAdapter,
     default_candidate_prompt,
 )
+from decision_lab.provenance import dataset_provenance
 from decision_lab.transformers_backend import (
     TransformersCausalLMBackend,
 )
@@ -80,8 +81,14 @@ structured_fit, structured_raw, structured_calibrated = (
 payload = {
     "metadata": {
         "model": args.model,
-        "calibration_dataset": args.calibration,
-        "test_dataset": args.test,
+        "calibration_dataset": dataset_provenance(
+            args.calibration,
+            calibration_cases,
+        ),
+        "test_dataset": dataset_provenance(
+            args.test,
+            test_cases,
+        ),
         "warning": (
             "Synthetic benchmark data; model inference is real. "
             "Do not treat results as production-traffic quality."
