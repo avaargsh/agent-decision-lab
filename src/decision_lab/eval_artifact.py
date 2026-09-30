@@ -235,6 +235,161 @@ def _fallback_semantics_error(
     return None
 
 
+def _is_sha256(value: object) -> bool:
+    if not isinstance(value, str) or not value.startswith("sha256:"):
+        return False
+    digest = value.removeprefix("sha256:")
+    return len(digest) == 64 and all(
+        char in "0123456789abcdef"
+        for char in digest
+    )
+
+
+_METRIC_FIELDS = {
+    "accuracy",
+    "macro_f1",
+    "nll",
+    "brier",
+    "ece",
+    "mean_latency_ms",
+    "p50_latency_ms",
+    "p95_latency_ms",
+    "mean_tokens_processed_per_decision",
+}
+_OPERATING_FIELDS = {
+    "threshold",
+    "coverage",
+    "risk",
+    "false_automation_rate",
+    "fallback_rate",
+    "risk_budget",
+}
+_TOP_LEVEL_PAYLOAD_FIELDS = {
+    "schema_version",
+    "decision_type",
+    "adapter",
+    "model_ref",
+    "dataset",
+    "calibration_sha256",
+    "metrics",
+    "operating_point",
+    "fallback_evaluation",
+}
+
+
+def _artifact_semantics_error(
+    payload: Mapping[str, Any],
+) -> str | None:
+    if set(payload) != _TOP_LEVEL_PAYLOAD_FIELDS:
+        return "artifact payload fields do not match decision-eval/v1"
+
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        return "schema_version mismatch"
+    for field in ("decision_type", "adapter"):
+        value = payload.get(field)
+        if not isinstance(value, str) or not value:
+            return f"{field} must be a non-empty string"
+
+    model_ref = payload.get("model_ref")
+    if model_ref is not None and not isinstance(model_ref, str):
+        return "model_ref must be a string or null"
+
+    calibration = payload.get("calibration_sha256")
+    if calibration is not None and not _is_sha256(calibration):
+        return "calibration_sha256 must be a sha256 digest or null"
+
+    dataset = payload.get("dataset")
+    if not isinstance(dataset, Mapping):
+        return "dataset must be an object"
+    if set(dataset) != {"sha256", "case_count", "case_ids"}:
+        return "dataset fields do not match decision-eval/v1"
+    if not _is_sha256(dataset.get("sha256")):
+        return "dataset.sha256 must be a sha256 digest"
+    case_ids = dataset.get("case_ids")
+    case_count = dataset.get("case_count")
+    if (
+        not isinstance(case_ids, list)
+        or not case_ids
+        or not all(
+            isinstance(item, str) and item
+            for item in case_ids
+        )
+        or len(set(case_ids)) != len(case_ids)
+        or isinstance(case_count, bool)
+        or not isinstance(case_count, int)
+        or case_count != len(case_ids)
+    ):
+        return "dataset case provenance is invalid"
+
+    metrics = payload.get("metrics")
+    if not isinstance(metrics, Mapping) or set(metrics) != _METRIC_FIELDS:
+        return "metrics fields do not match decision-eval/v1"
+
+    unit_interval = {"accuracy", "macro_f1", "ece"}
+    non_negative = {
+        "nll",
+        "brier",
+        "mean_latency_ms",
+        "p50_latency_ms",
+        "p95_latency_ms",
+    }
+    for name in unit_interval:
+        value = metrics.get(name)
+        if (
+            not _is_number(value)
+            or not 0.0 <= float(value) <= 1.0
+        ):
+            return f"metrics.{name} must be in [0, 1]"
+    for name in non_negative:
+        value = metrics.get(name)
+        if not _is_number(value) or float(value) < 0:
+            return f"metrics.{name} must be non-negative"
+    token_mean = metrics.get("mean_tokens_processed_per_decision")
+    if token_mean is not None and (
+        not _is_number(token_mean)
+        or float(token_mean) < 0
+    ):
+        return (
+            "metrics.mean_tokens_processed_per_decision "
+            "must be non-negative or null"
+        )
+
+    operating = payload.get("operating_point")
+    if operating is not None:
+        if (
+            not isinstance(operating, Mapping)
+            or set(operating) != _OPERATING_FIELDS
+        ):
+            return "operating_point fields do not match decision-eval/v1"
+        for name in (
+            "threshold",
+            "coverage",
+            "risk",
+            "false_automation_rate",
+            "fallback_rate",
+        ):
+            value = operating.get(name)
+            if (
+                not _is_number(value)
+                or not 0.0 <= float(value) <= 1.0
+            ):
+                return f"operating_point.{name} must be in [0, 1]"
+        risk_budget = operating.get("risk_budget")
+        if risk_budget is not None and (
+            not _is_number(risk_budget)
+            or not 0.0 <= float(risk_budget) <= 1.0
+        ):
+            return "operating_point.risk_budget must be in [0, 1] or null"
+
+    fallback = payload.get("fallback_evaluation")
+    if not isinstance(fallback, Mapping):
+        return "fallback_evaluation must be an object"
+    return _fallback_semantics_error(
+        fallback,
+        dataset_case_ids=case_ids,
+    )
+
+
 def _canonical_json(value: Mapping[str, Any]) -> bytes:
     return json.dumps(
         value,
@@ -262,14 +417,30 @@ def build_eval_artifact(
     if not decision_type:
         raise ValueError("decision_type must not be empty")
 
-    dataset_sha256 = str(dataset.get("sha256", ""))
-    if not dataset_sha256.startswith("sha256:"):
+    dataset_sha256 = dataset.get("sha256")
+    if not _is_sha256(dataset_sha256):
         raise ValueError("dataset.sha256 must be a sha256: digest")
+
+    if calibration_sha256 is not None and not _is_sha256(
+        calibration_sha256
+    ):
+        raise ValueError(
+            "calibration_sha256 must be a sha256: digest or null"
+        )
 
     case_ids = list(dataset.get("case_ids", []))
     case_count = int(dataset.get("case_count", len(case_ids)))
     report_case_ids = [case.case_id for case in report.cases]
 
+    if (
+        not case_ids
+        or len(set(case_ids)) != len(case_ids)
+        or not all(
+            isinstance(item, str) and item
+            for item in case_ids
+        )
+    ):
+        raise ValueError("dataset case_ids must be non-empty and unique")
     if case_count != len(case_ids):
         raise ValueError("dataset case_count does not match case_ids")
     if report_case_ids and report_case_ids != case_ids:
@@ -320,6 +491,10 @@ def build_eval_artifact(
         "fallback_evaluation": fallback,
     }
 
+    semantic_error = _artifact_semantics_error(payload)
+    if semantic_error is not None:
+        raise ValueError(semantic_error)
+
     digest = "sha256:" + sha256(_canonical_json(payload)).hexdigest()
     return {
         **payload,
@@ -346,6 +521,16 @@ def verify_eval_artifact(artifact: Mapping[str, Any]) -> bool:
     }
     actual = "sha256:" + sha256(_canonical_json(payload)).hexdigest()
     if actual != expected:
+        return False
+
+    if set(artifact) != (
+        _TOP_LEVEL_PAYLOAD_FIELDS
+        | {"artifact_id", "content_digest"}
+    ):
+        return False
+
+    semantic_error = _artifact_semantics_error(payload)
+    if semantic_error is not None:
         return False
 
     dataset = artifact.get("dataset")
