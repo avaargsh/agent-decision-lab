@@ -119,6 +119,8 @@ def _fallback_semantics_error(
             or not 0.0 <= float(confidence) <= 1.0
         ):
             return "fallback fast_confidence must be in [0, 1]"
+        if float(confidence) >= float(threshold):
+            return "fallback fast_confidence must be below threshold"
 
         for field in (
             "fast_predicted",
@@ -235,6 +237,51 @@ def _fallback_semantics_error(
     return None
 
 
+def _operating_point_semantics_error(
+    operating: Mapping[str, Any] | None,
+) -> str | None:
+    if operating is None:
+        return None
+
+    values: dict[str, float] = {}
+    for field in (
+        "threshold",
+        "coverage",
+        "risk",
+        "false_automation_rate",
+        "fallback_rate",
+        "risk_budget",
+    ):
+        value = operating.get(field)
+        if not _is_number(value):
+            return f"operating_point.{field} must be numeric"
+        number = float(value)
+        if not 0.0 <= number <= 1.0:
+            return f"operating_point.{field} must be in [0, 1]"
+        values[field] = number
+
+    if values["coverage"] <= 0.0:
+        return "operating_point.coverage must be positive"
+    if not math.isclose(
+        values["coverage"] + values["fallback_rate"],
+        1.0,
+        rel_tol=1e-9,
+        abs_tol=1e-9,
+    ):
+        return "operating_point coverage and fallback_rate must sum to 1"
+    if not math.isclose(
+        values["false_automation_rate"],
+        values["risk"] * values["coverage"],
+        rel_tol=1e-9,
+        abs_tol=1e-9,
+    ):
+        return "operating_point false_automation_rate is inconsistent"
+    if values["risk"] > values["risk_budget"] + 1e-12:
+        return "operating_point risk exceeds risk_budget"
+
+    return None
+
+
 def _canonical_json(value: Mapping[str, Any]) -> bytes:
     return json.dumps(
         value,
@@ -276,6 +323,20 @@ def build_eval_artifact(
         raise ValueError("benchmark report cases do not match dataset case_ids")
 
     operating = report.operating_point
+    operating_payload = (
+        {
+            **asdict(operating),
+            "risk_budget": report.risk_budget,
+        }
+        if operating is not None
+        else None
+    )
+    operating_error = _operating_point_semantics_error(
+        operating_payload
+    )
+    if operating_error is not None:
+        raise ValueError(operating_error)
+
     fallback = dict(fallback_evaluation or {})
     fallback.setdefault("measured", False)
     fallback_error = _fallback_semantics_error(
@@ -309,14 +370,7 @@ def build_eval_artifact(
                 report.mean_tokens_processed_per_decision
             ),
         },
-        "operating_point": (
-            {
-                **asdict(operating),
-                "risk_budget": report.risk_budget,
-            }
-            if operating is not None
-            else None
-        ),
+        "operating_point": operating_payload,
         "fallback_evaluation": fallback,
     }
 
@@ -349,6 +403,7 @@ def verify_eval_artifact(artifact: Mapping[str, Any]) -> bool:
         return False
 
     dataset = artifact.get("dataset")
+    operating = artifact.get("operating_point")
     fallback = artifact.get("fallback_evaluation")
     if not isinstance(dataset, Mapping) or not isinstance(
         fallback,
@@ -369,6 +424,14 @@ def verify_eval_artifact(artifact: Mapping[str, Any]) -> bool:
         or not isinstance(case_count, int)
         or case_count != len(case_ids)
     ):
+        return False
+
+    if operating is not None and not isinstance(
+        operating,
+        Mapping,
+    ):
+        return False
+    if _operating_point_semantics_error(operating) is not None:
         return False
 
     return (
