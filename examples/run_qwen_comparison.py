@@ -83,8 +83,8 @@ payload = {
         "calibration_dataset": args.calibration,
         "test_dataset": args.test,
         "warning": (
-            "Synthetic demo fixtures; not a "
-            "model-quality benchmark."
+            "Synthetic benchmark data; model inference is real. "
+            "Do not treat results as production-traffic quality."
         ),
     },
     "frozen_logits": {
