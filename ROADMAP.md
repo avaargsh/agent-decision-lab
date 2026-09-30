@@ -18,6 +18,8 @@
 - [x] escalation seed dataset
 - [x] Risk-Coverage computation
 - [x] false automation analysis
+- [x] risk-budget operating-point selection
+- [x] fallback-rate reporting in benchmark matrices
 - [x] separate calibration/test demo fixtures
 - [x] p50 / p95 latency reporting
 - [x] tokens-processed accounting

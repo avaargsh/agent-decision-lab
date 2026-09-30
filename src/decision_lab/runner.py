@@ -14,7 +14,7 @@ from .metrics import (
     multiclass_nll,
 )
 from .models import CandidateScore, DecisionRequest
-from .selective import CoveragePoint, risk_coverage
+from .selective import CoveragePoint, risk_coverage, select_operating_point
 from .telemetry import set_attribute, span
 
 
@@ -51,6 +51,8 @@ class BenchmarkReport:
     cases: list[CaseResult]
     macro_f1: float = 0.0
     nll: float = 0.0
+    risk_budget: float | None = None
+    operating_point: CoveragePoint | None = None
 
 
 def _percentile(
@@ -110,9 +112,13 @@ def run_benchmark(
     cases: Sequence[BenchmarkCase],
     *,
     thresholds: Sequence[float] = (0.5, 0.7, 0.8, 0.9, 0.95),
+    risk_budget: float | None = None,
+    min_coverage: float = 0.0,
 ) -> BenchmarkReport:
     if not cases:
         raise ValueError("cases must not be empty")
+    if risk_budget is None and min_coverage != 0.0:
+        raise ValueError("min_coverage requires risk_budget")
 
     results: list[CaseResult] = []
     predictions: list[Prediction] = []
@@ -122,6 +128,8 @@ def run_benchmark(
         {
             "benchmark.adapter": adapter.name,
             "benchmark.case_count": len(cases),
+            "benchmark.risk_budget": risk_budget,
+            "benchmark.min_coverage": min_coverage if risk_budget is not None else None,
         },
     ) as benchmark_span:
         for case in cases:
@@ -272,6 +280,20 @@ def run_benchmark(
             else None
         )
 
+        coverage_points = risk_coverage(
+            predictions,
+            thresholds=thresholds,
+        )
+        operating_point = (
+            select_operating_point(
+                coverage_points,
+                max_risk=risk_budget,
+                min_coverage=min_coverage,
+            )
+            if risk_budget is not None
+            else None
+        )
+
         set_attribute(
             benchmark_span,
             "benchmark.accuracy",
@@ -317,6 +339,32 @@ def run_benchmark(
             "benchmark.mean_tokens_processed_per_decision",
             mean_tokens_processed,
         )
+        if operating_point is not None:
+            set_attribute(
+                benchmark_span,
+                "benchmark.operating_threshold",
+                operating_point.threshold,
+            )
+            set_attribute(
+                benchmark_span,
+                "benchmark.operating_coverage",
+                operating_point.coverage,
+            )
+            set_attribute(
+                benchmark_span,
+                "benchmark.operating_risk",
+                operating_point.risk,
+            )
+            set_attribute(
+                benchmark_span,
+                "benchmark.fallback_rate",
+                operating_point.fallback_rate,
+            )
+            set_attribute(
+                benchmark_span,
+                "benchmark.false_automation_rate",
+                operating_point.false_automation_rate,
+            )
 
         return BenchmarkReport(
             adapter=adapter.name,
@@ -329,11 +377,10 @@ def run_benchmark(
             mean_tokens_processed_per_decision=(
                 mean_tokens_processed
             ),
-            coverage=risk_coverage(
-                predictions,
-                thresholds=thresholds,
-            ),
+            coverage=coverage_points,
             cases=results,
             macro_f1=report_macro_f1,
             nll=nll,
+            risk_budget=risk_budget,
+            operating_point=operating_point,
         )

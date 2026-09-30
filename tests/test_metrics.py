@@ -7,7 +7,7 @@ from decision_lab.metrics import (
     multiclass_nll,
 )
 from decision_lab.models import CandidateScore
-from decision_lab.selective import risk_coverage
+from decision_lab.selective import risk_coverage, select_operating_point
 
 
 def test_temperature_calibration_normalizes() -> None:
@@ -41,9 +41,41 @@ def test_risk_coverage() -> None:
     )
 
     assert points[0].coverage == 1.0
+    assert points[0].fallback_rate == 0.0
     assert points[1].coverage == 2 / 3
+    assert points[1].fallback_rate == 1 / 3
     assert points[1].false_automation_rate == 1 / 3
     assert points[2].coverage == 0.0
+    assert points[2].fallback_rate == 1.0
+
+
+def test_select_operating_point_maximizes_coverage_inside_risk_budget() -> None:
+    points = risk_coverage(
+        [
+            Prediction(0.99, True),
+            Prediction(0.91, True),
+            Prediction(0.82, False),
+            Prediction(0.70, True),
+        ],
+        thresholds=[0.7, 0.8, 0.9, 0.95],
+    )
+
+    selected = select_operating_point(points, max_risk=0.0)
+
+    assert selected is not None
+    assert selected.threshold == 0.9
+    assert selected.coverage == 0.5
+    assert selected.risk == 0.0
+    assert selected.fallback_rate == 0.5
+
+
+def test_select_operating_point_returns_none_when_budget_cannot_be_met() -> None:
+    points = risk_coverage(
+        [Prediction(0.99, False)],
+        thresholds=[0.5, 0.9, 1.0],
+    )
+
+    assert select_operating_point(points, max_risk=0.0) is None
 
 
 def test_multiclass_nll_uses_gold_probability() -> None:
