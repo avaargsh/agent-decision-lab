@@ -98,6 +98,37 @@ See `docs/quickstart.md` and `docs/api.md` for the benchmark and HTTP contracts.
 
 Real-model comparison reports bind both calibration and test inputs to their exact SHA-256 bytes, case count and case IDs. This makes a reported metric replayable against the dataset revision that actually produced it instead of relying on a mutable file path alone.
 
+## Release-gate eval artifact
+
+Benchmark output can be sealed as a provider-neutral `decision-eval/v1` artifact.
+The artifact binds the benchmark metrics to the exact dataset digest and case IDs,
+records the selected risk-budget operating point, and makes fallback measurement
+status explicit.
+
+```text
+BenchmarkReport
+   + dataset SHA-256 / case IDs
+   + calibration digest
+   + model reference
+   + measured operating point
+   + fallback evaluation status
+        |
+        v
+decision-eval/v1
+        |
+        v
+content digest / artifact_id
+        |
+        v
+Agent Control Plane Eval Gate
+```
+
+The artifact deliberately defaults `fallback_evaluation.measured` to `false`.
+A deterministic or placeholder fallback must not be presented as a measured
+System-2 result.
+
+See `schemas/decision-eval-artifact.schema.json`.
+
 ## Status
 
 Public pre-1.0 research and engineering repository. The Decision Gateway, calibration primitives, benchmark harness, deterministic demo server, and Qwen experiment path are implemented. Dedicated decision heads, Decision LoRA, and vLLM/SGLang serving remain experimental roadmap work.
