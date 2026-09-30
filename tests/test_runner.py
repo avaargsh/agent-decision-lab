@@ -36,6 +36,27 @@ def test_benchmark_runner_perfect_mapping() -> None:
     assert len(report.cases) == 2
 
 
+def test_benchmark_runner_selects_risk_budget_operating_point() -> None:
+    def mapping(request):
+        if request.context["intent"] == "metrics":
+            return {"a": 0.95, "b": 0.05}
+        return {"a": 0.55, "b": 0.45}
+
+    report = run_benchmark(
+        MappingScoreAdapter(mapping),
+        CASES,
+        thresholds=[0.5, 0.8, 0.9],
+        risk_budget=0.0,
+    )
+
+    assert report.risk_budget == 0.0
+    assert report.operating_point is not None
+    assert report.operating_point.threshold == 0.9
+    assert report.operating_point.coverage == 0.5
+    assert report.operating_point.fallback_rate == 0.5
+    assert report.operating_point.false_automation_rate == 0.0
+
+
 def test_structured_output_adapter() -> None:
     def generate(request):
         if request.context["intent"] == "metrics":

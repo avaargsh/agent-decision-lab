@@ -78,3 +78,10 @@ Production evaluation must include calibration and selective automation:
 - fallback rate,
 - latency and cost,
 - downstream task outcome.
+
+For selective automation, the benchmark may be given an explicit maximum observed
+risk budget. It then selects the highest-coverage non-empty threshold that stays
+inside that budget and reports the corresponding threshold, coverage, risk, false
+automation rate, and fallback rate. This is an evaluation operating point, not an
+authorization policy: production execution must still pass deterministic policy,
+approval, and runtime safety controls.
