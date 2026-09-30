@@ -356,6 +356,7 @@ def build_eval_artifact(
     dataset: Mapping[str, Any],
     model_ref: str | None = None,
     calibration_sha256: str | None = None,
+    calibration: Mapping[str, Any] | None = None,
     fallback_evaluation: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a content-addressed benchmark artifact for release/eval gates.
@@ -377,6 +378,50 @@ def build_eval_artifact(
         and not _is_sha256(calibration_sha256)
     ):
         raise ValueError("calibration_sha256 must be a sha256: digest")
+
+    calibration_payload: dict[str, Any] | None = None
+    if calibration is not None:
+        calibration_digest = calibration.get("sha256")
+        if not _is_sha256(calibration_digest):
+            raise ValueError("calibration.sha256 must be a sha256: digest")
+        calibration_case_ids = list(calibration.get("case_ids", []))
+        raw_calibration_count = calibration.get(
+            "case_count",
+            len(calibration_case_ids),
+        )
+        if (
+            isinstance(raw_calibration_count, bool)
+            or not isinstance(raw_calibration_count, int)
+        ):
+            raise ValueError("calibration case_count must be an integer")
+        if (
+            not calibration_case_ids
+            or len(set(calibration_case_ids)) != len(calibration_case_ids)
+            or not all(
+                isinstance(case_id, str) and case_id
+                for case_id in calibration_case_ids
+            )
+        ):
+            raise ValueError(
+                "calibration case_ids must be non-empty and unique"
+            )
+        if raw_calibration_count != len(calibration_case_ids):
+            raise ValueError(
+                "calibration case_count does not match case_ids"
+            )
+        if (
+            calibration_sha256 is not None
+            and calibration_sha256 != calibration_digest
+        ):
+            raise ValueError(
+                "calibration_sha256 must match calibration.sha256"
+            )
+        calibration_sha256 = str(calibration_digest)
+        calibration_payload = {
+            "sha256": str(calibration_digest),
+            "case_count": raw_calibration_count,
+            "case_ids": calibration_case_ids,
+        }
 
     dataset_sha256 = dataset.get("sha256")
     if not _is_sha256(dataset_sha256):
@@ -405,6 +450,14 @@ def build_eval_artifact(
         raise ValueError("dataset case_count does not match case_ids")
     if report_case_ids and report_case_ids != case_ids:
         raise ValueError("benchmark report cases do not match dataset case_ids")
+    if calibration_payload is not None:
+        overlap = set(case_ids).intersection(
+            calibration_payload["case_ids"]
+        )
+        if overlap:
+            raise ValueError(
+                "calibration and test case_ids must be disjoint"
+            )
 
     operating = report.operating_point
     operating_payload = (
@@ -462,6 +515,8 @@ def build_eval_artifact(
         "operating_point": operating_payload,
         "fallback_evaluation": fallback,
     }
+    if calibration_payload is not None:
+        payload["calibration"] = calibration_payload
 
     digest = "sha256:" + sha256(_canonical_json(payload)).hexdigest()
     return {
@@ -510,6 +565,7 @@ def verify_eval_artifact(artifact: Mapping[str, Any]) -> bool:
         return False
 
     dataset = artifact.get("dataset")
+    calibration = artifact.get("calibration")
     metrics = artifact.get("metrics")
     operating = artifact.get("operating_point")
     fallback = artifact.get("fallback_evaluation")
@@ -538,6 +594,29 @@ def verify_eval_artifact(artifact: Mapping[str, Any]) -> bool:
         or case_count != len(case_ids)
     ):
         return False
+
+    if calibration is not None:
+        if not isinstance(calibration, Mapping):
+            return False
+        calibration_digest = calibration.get("sha256")
+        calibration_case_ids = calibration.get("case_ids")
+        calibration_case_count = calibration.get("case_count")
+        if (
+            not _is_sha256(calibration_digest)
+            or not isinstance(calibration_case_ids, list)
+            or not calibration_case_ids
+            or len(set(calibration_case_ids)) != len(calibration_case_ids)
+            or not all(
+                isinstance(item, str) and item
+                for item in calibration_case_ids
+            )
+            or isinstance(calibration_case_count, bool)
+            or not isinstance(calibration_case_count, int)
+            or calibration_case_count != len(calibration_case_ids)
+            or calibration_sha256 != calibration_digest
+            or set(case_ids).intersection(calibration_case_ids)
+        ):
+            return False
 
     if operating is not None and not isinstance(
         operating,

@@ -54,6 +54,14 @@ def dataset():
     }
 
 
+def calibration():
+    return {
+        "sha256": "sha256:" + "b" * 64,
+        "case_count": 2,
+        "case_ids": ["cal-route-a", "cal-route-b"],
+    }
+
+
 def test_eval_artifact_is_content_addressed_and_verifiable():
     artifact = build_eval_artifact(
         report(),
@@ -433,3 +441,63 @@ def test_build_rejects_invalid_calibration_digest():
             dataset=dataset(),
             calibration_sha256="sha256:short",
         )
+
+def test_eval_artifact_seals_disjoint_calibration_provenance():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+        calibration=calibration(),
+    )
+
+    assert artifact["calibration_sha256"] == calibration()["sha256"]
+    assert artifact["calibration"]["case_count"] == 2
+    assert artifact["calibration"]["case_ids"] == [
+        "cal-route-a",
+        "cal-route-b",
+    ]
+    assert verify_eval_artifact(artifact)
+
+
+def test_build_rejects_calibration_test_case_overlap():
+    leaked = calibration()
+    leaked["case_ids"] = ["cal-route-a", "route-logs"]
+
+    with pytest.raises(
+        ValueError,
+        match="calibration and test case_ids must be disjoint",
+    ):
+        build_eval_artifact(
+            report(),
+            decision_type="mcp_tool_router",
+            dataset=dataset(),
+            calibration=leaked,
+        )
+
+
+def test_verify_rejects_resealed_calibration_test_overlap():
+    artifact = build_eval_artifact(
+        report(),
+        decision_type="mcp_tool_router",
+        dataset=dataset(),
+        calibration=calibration(),
+    )
+    artifact["calibration"]["case_ids"][1] = "route-logs"
+    _reseal(artifact)
+
+    assert not verify_eval_artifact(artifact)
+
+
+def test_build_rejects_calibration_digest_alias_mismatch():
+    with pytest.raises(
+        ValueError,
+        match="calibration_sha256 must match calibration.sha256",
+    ):
+        build_eval_artifact(
+            report(),
+            decision_type="mcp_tool_router",
+            dataset=dataset(),
+            calibration_sha256="sha256:" + "c" * 64,
+            calibration=calibration(),
+        )
+
