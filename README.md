@@ -96,6 +96,8 @@ decision-lab-server --mode demo --host 127.0.0.1 --port 8080
 
 See `docs/quickstart.md` and `docs/api.md` for the benchmark and HTTP contracts.
 
+Real-model comparison reports bind both calibration and test inputs to their exact SHA-256 bytes, case count and case IDs. This makes a reported metric replayable against the dataset revision that actually produced it instead of relying on a mutable file path alone.
+
 ## Status
 
 Public pre-1.0 research and engineering repository. The Decision Gateway, calibration primitives, benchmark harness, deterministic demo server, and Qwen experiment path are implemented. Dedicated decision heads, Decision LoRA, and vLLM/SGLang serving remain experimental roadmap work.
