@@ -1,0 +1,42 @@
+{
+  "schema_version": "decision-eval/v1",
+  "decision_type": "mcp_tool_router",
+  "adapter": "transformers-structured-output+calibrated",
+  "model_ref": "Qwen/Qwen3-0.6B",
+  "dataset": {
+    "sha256": "sha256:6ae2a22b0f566508e9ea394ced032e23046c0ebf6cbb0238dad2133b0e43d65a",
+    "case_count": 16,
+    "case_ids": [
+      "mcp-test-001","mcp-test-002","mcp-test-003","mcp-test-004",
+      "mcp-test-005","mcp-test-006","mcp-test-007","mcp-test-008",
+      "mcp-test-009","mcp-test-010","mcp-test-011","mcp-test-012",
+      "mcp-test-013","mcp-test-014","mcp-test-015","mcp-test-016"
+    ]
+  },
+  "calibration_sha256": "sha256:84d4fbfeebc85d2f60d49851082754c5dcbe0a97f80ac1d6d1a8421a5721001c",
+  "metrics": {
+    "accuracy": 0.375,
+    "macro_f1": 0.2666666666666666,
+    "nll": 2.9399463857254386,
+    "brier": 0.2734374999999998,
+    "ece": 0.15624999999999933,
+    "mean_latency_ms": 5763.223974312502,
+    "p50_latency_ms": 5744.184979499949,
+    "p95_latency_ms": 5902.40128399995,
+    "mean_tokens_processed_per_decision": 106.5625
+  },
+  "operating_point": null,
+  "fallback_evaluation": {"measured": false},
+  "calibration": {
+    "sha256": "sha256:84d4fbfeebc85d2f60d49851082754c5dcbe0a97f80ac1d6d1a8421a5721001c",
+    "case_count": 16,
+    "case_ids": [
+      "mcp-cal-001","mcp-cal-002","mcp-cal-003","mcp-cal-004",
+      "mcp-cal-005","mcp-cal-006","mcp-cal-007","mcp-cal-008",
+      "mcp-cal-009","mcp-cal-010","mcp-cal-011","mcp-cal-012",
+      "mcp-cal-013","mcp-cal-014","mcp-cal-015","mcp-cal-016"
+    ]
+  },
+  "artifact_id": "decision-eval:sha256:3dc4d4ecf58e79e02dfd5485ee18b7b83209559dc0928f4d96c8a4bae443bb13",
+  "content_digest": "sha256:3dc4d4ecf58e79e02dfd5485ee18b7b83209559dc0928f4d96c8a4bae443bb13"
+}

@@ -50,21 +50,30 @@ jobs:
             --test benchmarks/mcp_tool_router/v1.test.jsonl \
             --fallback-threshold "$FALLBACK_THRESHOLD" \
             --output artifacts/qwen-comparison.json \
-            --eval-artifact artifacts/decision-eval.json
+            --frozen-eval-artifact artifacts/frozen-logits.decision-eval.json \
+            --structured-eval-artifact artifacts/structured-output.decision-eval.json
 
-      - name: Verify measured fallback evidence
+      - name: Verify release-facing decision artifacts
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
 
+          from decision_lab.contract_matrix import build_contract_matrix
           from decision_lab.eval_artifact import verify_eval_artifact
 
           report = json.loads(
               Path("artifacts/qwen-comparison.json").read_text(encoding="utf-8")
           )
-          artifact = json.loads(
-              Path("artifacts/decision-eval.json").read_text(encoding="utf-8")
+          frozen = json.loads(
+              Path("artifacts/frozen-logits.decision-eval.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          structured = json.loads(
+              Path("artifacts/structured-output.decision-eval.json").read_text(
+                  encoding="utf-8"
+              )
           )
           fallback = report["system2_fallback"]
 
@@ -84,35 +93,42 @@ jobs:
               if fallback.get(field) is None:
                   raise SystemExit(f"missing measured fallback field: {field}")
 
-          calibration_sha256 = artifact.get("calibration_sha256")
-          if not (
-              isinstance(calibration_sha256, str)
-              and calibration_sha256.startswith("sha256:")
+          for name, artifact in (
+              ("frozen", frozen),
+              ("structured", structured),
           ):
-              raise SystemExit("calibration SHA-256 provenance is missing")
-          if artifact["fallback_evaluation"].get("measured") is not True:
-              raise SystemExit("sealed fallback evidence is not measured")
-          if not verify_eval_artifact(artifact):
-              raise SystemExit("decision-eval artifact digest verification failed")
+              if not verify_eval_artifact(artifact):
+                  raise SystemExit(f"{name} decision-eval artifact is invalid")
+              calibration = artifact.get("calibration")
+              if not isinstance(calibration, dict):
+                  raise SystemExit(f"{name} calibration provenance is missing")
+              if calibration.get("sha256") != artifact.get("calibration_sha256"):
+                  raise SystemExit(f"{name} calibration digest alias mismatch")
+
+          if frozen["fallback_evaluation"].get("measured") is not True:
+              raise SystemExit("frozen artifact lost measured fallback evidence")
+          if structured["fallback_evaluation"].get("measured") is not False:
+              raise SystemExit("Structured Output baseline must not claim fallback")
+
+          matrix = build_contract_matrix([frozen, structured])
+          Path("artifacts/decision-contract-matrix.json").write_text(
+              json.dumps(matrix, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          if len(matrix["rows"]) != 2:
+              raise SystemExit("expected exactly two release-facing baseline rows")
 
           print(
               json.dumps(
                   {
-                      "artifact_id": artifact["artifact_id"],
-                      "model_ref": artifact.get("model_ref"),
-                      "calibration_sha256": calibration_sha256,
-                      "dataset_sha256": artifact["dataset"]["sha256"],
+                      "frozen_artifact_id": frozen["artifact_id"],
+                      "structured_artifact_id": structured["artifact_id"],
+                      "dataset_sha256": matrix["dataset"]["sha256"],
+                      "calibration_sha256": frozen["calibration_sha256"],
                       "fallback_case_count": fallback["fallback_case_count"],
                       "fallback_rate": fallback["fallback_rate"],
                       "fallback_accuracy": fallback["accuracy"],
-                      "fallback_p50_latency_ms": fallback["p50_latency_ms"],
                       "fallback_p95_latency_ms": fallback["p95_latency_ms"],
-                      "fallback_mean_tokens_processed": fallback[
-                          "mean_tokens_processed"
-                      ],
-                      "fallback_parse_valid_rate": fallback[
-                          "parse_valid_rate"
-                      ],
                   },
                   indent=2,
               )
@@ -147,7 +163,9 @@ jobs:
           name: qwen-measured-fallback-${{ github.run_id }}
           path: |
             artifacts/qwen-comparison.json
-            artifacts/decision-eval.json
+            artifacts/frozen-logits.decision-eval.json
+            artifacts/structured-output.decision-eval.json
+            artifacts/decision-contract-matrix.json
             artifacts/environment.txt
           if-no-files-found: warn
           retention-days: 30
