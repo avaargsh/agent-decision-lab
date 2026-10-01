@@ -32,7 +32,13 @@ CASES = [
 ]
 
 
-def _artifact(*, adapter_name: str, model_ref: str):
+def _artifact(
+    *,
+    adapter_name: str,
+    model_ref: str,
+    dataset_digest: str | None = None,
+    decision_type: str = "mcp_tool_router",
+):
     def mapping(request):
         if request.context["intent"] == "metrics":
             return {
@@ -52,9 +58,9 @@ def _artifact(*, adapter_name: str, model_ref: str):
     )
     return build_eval_artifact(
         report,
-        decision_type="mcp_tool_router",
+        decision_type=decision_type,
         dataset={
-            "sha256": "sha256:" + ("a" * 64),
+            "sha256": dataset_digest or ("sha256:" + ("a" * 64)),
             "case_count": 2,
             "case_ids": ["route-metrics", "route-logs"],
         },
@@ -121,12 +127,12 @@ def test_contract_matrix_rejects_different_test_dataset_identity():
     structured = _artifact(
         adapter_name="structured-output",
         model_ref="Qwen/Qwen3-0.6B",
+        dataset_digest="sha256:" + ("c" * 64),
     )
-    structured["dataset"]["sha256"] = "sha256:" + ("c" * 64)
 
     with pytest.raises(
         ContractMatrixError,
-        match="invalid decision eval artifacts",
+        match="exact same test dataset",
     ):
         build_contract_matrix([fast, structured])
 
@@ -139,11 +145,11 @@ def test_contract_matrix_rejects_different_decision_type():
     structured = _artifact(
         adapter_name="structured-output",
         model_ref="Qwen/Qwen3-0.6B",
+        decision_type="policy_gate",
     )
-    structured["decision_type"] = "policy_gate"
 
     with pytest.raises(
         ContractMatrixError,
-        match="invalid decision eval artifacts",
+        match="same decision_type",
     ):
         build_contract_matrix([fast, structured])
