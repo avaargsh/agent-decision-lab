@@ -1,0 +1,15 @@
+{
+  "schema_version": "decision-release-provenance/v1",
+  "source_workflow_run_id": 36705402666,
+  "source_workflow_artifact_id": 11092303346,
+  "source_workflow_artifact_digest": "sha256:aa1f2520e1a1cd39de827c390cbe99d367956f46c4050a3ff1a0014f4febaa0a",
+  "source_head_sha": "fb1ba30bfb386080e101140f6630ea29bf11b004",
+  "model_ref": "Qwen/Qwen3-0.6B",
+  "dataset_sha256": "sha256:6ae2a22b0f566508e9ea394ced032e23046c0ebf6cbb0238dad2133b0e43d65a",
+  "calibration_sha256": "sha256:84d4fbfeebc85d2f60d49851082754c5dcbe0a97f80ac1d6d1a8421a5721001c",
+  "artifacts": {
+    "frozen_logits": "decision-eval:sha256:e5cce372cc10dd174c02ade98e6bbbdd3253ba40658afd73ad7dad82f93341c0",
+    "structured_output": "decision-eval:sha256:3dc4d4ecf58e79e02dfd5485ee18b7b83209559dc0928f4d96c8a4bae443bb13"
+  },
+  "warning": "Synthetic benchmark data; model inference is real. Do not treat results as production-traffic quality."
+}
