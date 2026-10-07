@@ -119,11 +119,26 @@ def validate_routing_annotations(
 
         if coverage == "covered":
             covered_count += 1
-            if case.gold_candidate not in case.candidates:
-                raise ValueError(
-                    f"{case.case_id} covered case must contain gold candidate"
-                )
+            if expected_abstain and ambiguity in {"underspecified", "multi_valid"}:
+                if case.gold_candidate is not None:
+                    raise ValueError(
+                        f"{case.case_id} ambiguous abstention case must not declare a single gold"
+                    )
+                _validate_plausible_candidates(case)
+            else:
+                if case.gold_candidate is None:
+                    raise ValueError(
+                        f"{case.case_id} covered single-gold case requires gold candidate"
+                    )
+                if case.gold_candidate not in case.candidates:
+                    raise ValueError(
+                        f"{case.case_id} covered case must contain gold candidate"
+                    )
         elif coverage == "missing_candidate":
+            if case.gold_candidate is None:
+                raise ValueError(
+                    f"{case.case_id} missing_candidate requires the omitted gold identity"
+                )
             if case.gold_candidate in case.candidates:
                 raise ValueError(
                     f"{case.case_id} missing_candidate case must omit gold"
@@ -133,6 +148,10 @@ def validate_routing_annotations(
                     f"{case.case_id} missing_candidate must expect abstention"
                 )
         else:
+            if case.gold_candidate is not None:
+                raise ValueError(
+                    f"{case.case_id} unsupported case must not declare a gold candidate"
+                )
             if not expected_abstain:
                 raise ValueError(
                     f"{case.case_id} unsupported case must expect abstention"
@@ -168,6 +187,26 @@ def validate_routing_annotations(
         risk_counts=dict(sorted(risk_counts.items())),
         effect_counts=dict(sorted(effect_counts.items())),
     )
+
+
+def _validate_plausible_candidates(case: BenchmarkCase) -> None:
+    plausible = case.metadata.get("plausible_candidates")
+    if not isinstance(plausible, list) or len(plausible) < 2:
+        raise ValueError(
+            f"{case.case_id} ambiguous abstention case requires at least two plausible_candidates"
+        )
+    if any(
+        not isinstance(candidate, str)
+        or candidate not in case.candidates
+        for candidate in plausible
+    ):
+        raise ValueError(
+            f"{case.case_id} plausible_candidates must be candidate identities"
+        )
+    if len(plausible) != len(set(plausible)):
+        raise ValueError(
+            f"{case.case_id} plausible_candidates must be unique"
+        )
 
 
 def _validate_evidence_refs(case: BenchmarkCase) -> None:
