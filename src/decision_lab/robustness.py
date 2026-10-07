@@ -157,6 +157,10 @@ def evaluate_permutation_robustness(
     results: list[PermutationCaseResult] = []
 
     for case in cases:
+        if case.gold_candidate is None:
+            raise ValueError(
+                f"permutation robustness requires gold candidate: {case.case_id}"
+            )
         baseline_prediction, _ = _score_top1(
             adapter,
             case,
