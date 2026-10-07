@@ -10,15 +10,21 @@ plane still denies execution.
 
 ### `covered`
 
-The intended gold tool is present in the candidate set and one candidate is
-sufficiently better than the alternatives to support a single-gold label.
+The candidate set contains the capabilities needed by the request.
+
+For ordinary closed-set cases, exactly one candidate is a defensible gold tool.
+For `underspecified` or `multi_valid` expected-abstain cases, the capabilities
+may still be present while no unique gold exists. Those cases use
+`gold_candidate=null` and declare at least two `plausible_candidates`.
 
 ### `missing_candidate`
 
 The intended tool exists in the frozen inventory but is intentionally absent
 from the presented candidate set.
 
-These cases must set `expected_abstain=true`.
+These cases must set `expected_abstain=true`. They retain the omitted
+`gold_candidate` identity so missing coverage is distinguishable from an
+unsupported capability.
 
 ### `unsupported`
 
@@ -113,8 +119,13 @@ and must provide `evidence_refs` containing:
 - immutable revision
 - source path
 
-The gold rationale should explain **why this tool is better than its nearest
-candidate**, not merely restate the tool name.
+Single-gold cases may use the legacy `gold_rationale` field. New annotations
+should prefer `label_rationale`.
+
+For single-gold cases, the rationale should explain **why this tool is better
+than its nearest candidate**, not merely restate the tool name. For expected-
+abstain cases, it should explain why a unique safe routing decision is not
+justified.
 
 ## Split discipline
 
