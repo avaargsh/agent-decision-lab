@@ -65,7 +65,7 @@ def _case(
 
 def test_abstention_reason_keeps_failure_semantics_distinct() -> None:
     cases = [
-        _case("a", reason, 0.5)[0]
+        _case("a", reason=reason, confidence=0.5)[0]
         for reason in (
             "underspecified",
             "multi_valid",
@@ -84,10 +84,10 @@ def test_abstention_reason_keeps_failure_semantics_distinct() -> None:
 
 def test_grouped_far_is_computed_from_one_abstention_report() -> None:
     pairs = [
-        _case("u1", "underspecified", 0.95),
-        _case("u2", "underspecified", 0.60),
-        _case("m1", "missing_candidate", 0.90),
-        _case("x1", "unsupported", 0.40),
+        _case("u1", reason="underspecified", confidence=0.95),
+        _case("u2", reason="underspecified", confidence=0.60),
+        _case("m1", reason="missing_candidate", confidence=0.90),
+        _case("x1", reason="unsupported", confidence=0.40),
     ]
     cases = [case for case, _ in pairs]
 
