@@ -12,7 +12,7 @@ class BenchmarkCase:
     decision_type: str
     context: dict[str, Any]
     candidates: list[str]
-    gold_candidate: str
+    gold_candidate: str | None
     metadata: dict[str, Any]
 
 
@@ -28,13 +28,22 @@ def load_jsonl(path: str | Path) -> list[BenchmarkCase]:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"invalid JSON on line {line_number}") from exc
 
+            gold_candidate = obj.get("gold_candidate")
+            if gold_candidate is not None and not isinstance(
+                gold_candidate,
+                str,
+            ):
+                raise ValueError(
+                    f"gold_candidate must be string or null on line {line_number}"
+                )
+
             cases.append(
                 BenchmarkCase(
                     case_id=obj["case_id"],
                     decision_type=obj["decision_type"],
                     context=dict(obj.get("context", {})),
                     candidates=list(obj["candidates"]),
-                    gold_candidate=obj["gold_candidate"],
+                    gold_candidate=gold_candidate,
                     metadata=dict(obj.get("metadata", {})),
                 )
             )
