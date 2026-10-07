@@ -82,32 +82,75 @@ PY
 
 python scripts/build_m5_stress_artifacts.py   --inventory "$OUT_DIR/awslabs-mcp.inventory.json"   --calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl   --test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl   --candidate-counts 5,10,20,50,100   --strategies random   --seed agent-decision-benchmark-v0.2   --output-dir "$OUT_DIR/m5-inputs"
 
-python examples/run_m5_qwen_stress.py   --model "$MODEL"   --inventory "$OUT_DIR/awslabs-mcp.inventory.json"   --calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl   --base-test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl   --covered "$OUT_DIR/m5-inputs/test.random.covered.jsonl"   --missing "$OUT_DIR/m5-inputs/test.random.missing.jsonl"   --candidate-batch-size "$CANDIDATE_BATCH_SIZE"   --prior-strength "$PRIOR_STRENGTH"   --risk-budget "$RISK_BUDGET"   --min-coverage "$MIN_COVERAGE"   --permutation-cases-per-k "$PERMUTATION_CASES_PER_K"   --output "$OUT_DIR/m5-qwen-stress.json"
+python examples/run_decision_gpu_replay.py   --model "$MODEL"   --inventory "$OUT_DIR/awslabs-mcp.inventory.json"   --m5-calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl   --m5-test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl   --m5-covered "$OUT_DIR/m5-inputs/test.random.covered.jsonl"   --m5-missing "$OUT_DIR/m5-inputs/test.random.missing.jsonl"   --m6-calibration benchmarks/mcp_tool_router/v3.source_grounded.calibration.jsonl   --m6-test benchmarks/mcp_tool_router/v3.source_grounded.test.jsonl   --m6-abstention benchmarks/mcp_tool_router/v3.abstention.test.jsonl   --candidate-batch-size "$CANDIDATE_BATCH_SIZE"   --prior-strength "$PRIOR_STRENGTH"   --risk-budget "$RISK_BUDGET"   --min-coverage "$MIN_COVERAGE"   --permutation-cases-per-k "$PERMUTATION_CASES_PER_K"   --output "$OUT_DIR/decision-gpu-replay.json"
 
-python - "$OUT_DIR/m5-qwen-stress.json" <<'PY'
+python - "$OUT_DIR/decision-gpu-replay.json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 report = json.loads(Path(sys.argv[1]).read_text())
-if report["schema_version"] != "m5-model-stress/v2":
-    raise SystemExit("unexpected model-stress schema")
+
+if report["schema_version"] != "decision-gpu-replay/v1":
+    raise SystemExit("unexpected replay schema")
 if report["metadata"]["inventory_tool_count"] != 804:
     raise SystemExit("unexpected inventory size")
 
-for arm in (
+arms = (
     "frozen_logits",
     "prior_corrected_logits",
     "structured_output",
-):
+)
+
+for arm in arms:
+    m5 = report["m5_candidate_scaling"][arm]
     ks = [
         item["candidate_count"]
-        for item in report[arm]["by_candidate_count"]
+        for item in m5["by_candidate_count"]
     ]
     if ks != [5, 10, 20, 50, 100]:
-        raise SystemExit(f"{arm} has unexpected candidate counts: {ks}")
+        raise SystemExit(
+            f"{arm} has unexpected M5 candidate counts: {ks}"
+        )
 
-print("verified three model arms across K=5/10/20/50/100")
+    m6 = report["m6_source_grounded_quality"][arm]
+    if len(m6["closed_test"]["cases"]) != 20:
+        raise SystemExit(
+            f"{arm} does not contain 20 M6 closed-test cases"
+        )
+    if m6["abstention"]["expected_abstain_case_count"] != 16:
+        raise SystemExit(
+            f"{arm} does not contain 16 M6 abstention cases"
+        )
+
+    reason_groups = {
+        item["group_value"]: item
+        for item in m6["abstention_groups"]["groups"]
+        if item["group_key"] == "abstention_reason"
+    }
+    expected_reasons = {
+        "underspecified",
+        "multi_valid",
+        "missing_candidate",
+        "unsupported",
+    }
+    if set(reason_groups) != expected_reasons:
+        raise SystemExit(
+            f"{arm} has wrong abstention reason groups: "
+            f"{sorted(reason_groups)}"
+        )
+    if any(
+        item["case_count"] != 4
+        for item in reason_groups.values()
+    ):
+        raise SystemExit(
+            f"{arm} abstention reason groups must each contain 4 cases"
+        )
+
+print(
+    "verified M5 K-scaling and M6 closed/abstention protocols "
+    "for all three model arms"
+)
 PY
 
 {
@@ -140,8 +183,10 @@ model = sys.argv[2]
 batch_size = int(sys.argv[3])
 prior_strength = float(sys.argv[4])
 
+
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
 
 gpu_rows = [
     line.strip()
@@ -150,7 +195,7 @@ gpu_rows = [
 ]
 
 manifest = {
-    "schema_version": "m5-gpu-replay/v1",
+    "schema_version": "decision-gpu-replay-bundle/v1",
     "git_sha": subprocess.check_output(
         ["git", "rev-parse", "HEAD"],
         text=True,
@@ -185,5 +230,5 @@ PY
 )
 
 echo "GPU replay complete: $OUT_DIR"
-echo "Primary report: $OUT_DIR/m5-qwen-stress.json"
+echo "Primary report: $OUT_DIR/decision-gpu-replay.json"
 echo "Run manifest: $OUT_DIR/run-manifest.json"
