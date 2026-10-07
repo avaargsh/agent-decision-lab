@@ -32,6 +32,7 @@
 - [ ] retained semantic-nearest-neighbour distractor construction
 - [x] frozen real MCP inventory snapshot corpus
 - [x] source-grounded near-neighbour labeled corpus
+- [x] trace-backed corpus provenance / sanitization / split-isolation contract
 - [ ] production/trace-backed labeled benchmark corpus
 - [x] ambiguity/risk annotation guidelines
 - [x] explicit underspecified / multi-valid / missing / unsupported abstention corpus
