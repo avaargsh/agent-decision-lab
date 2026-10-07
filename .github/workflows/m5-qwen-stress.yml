@@ -1,0 +1,45 @@
+name: m5-qwen-gpu-replay
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Hugging Face causal LM checkpoint
+        required: true
+        default: Qwen/Qwen3-0.6B
+      candidate_batch_size:
+        description: Frozen-logit candidates per forward pass
+        required: true
+        default: "16"
+
+permissions:
+  contents: read
+
+jobs:
+  qwen-gpu-replay:
+    runs-on: [self-hosted, linux, gpu]
+    timeout-minutes: 240
+    env:
+      MODEL: ${{ inputs.model }}
+      CANDIDATE_BATCH_SIZE: ${{ inputs.candidate_batch_size }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+    steps:
+      - name: Checkout benchmark repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run fail-closed GPU replay
+        run: bash scripts/run_m5_gpu_replay.sh
+
+      - name: Upload GPU evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5-qwen-gpu-replay
+          path: artifacts/gpu-replay/
+          if-no-files-found: error

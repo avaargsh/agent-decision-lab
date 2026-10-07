@@ -1,4 +1,8 @@
-from decision_lab.logits import FrozenLogitAdapter, default_candidate_prompt
+from decision_lab.logits import (
+    FrozenLogitAdapter,
+    compact_candidate_prompt,
+    default_candidate_prompt,
+)
 from decision_lab.models import DecisionRequest
 
 
@@ -108,3 +112,22 @@ def test_default_prompt_contains_bounded_candidates() -> None:
     assert "Decision type: severity" in prompt
     assert "sev1, sev2" in prompt
     assert "regional outage" in prompt
+
+
+def test_compact_prompt_does_not_scale_with_candidate_list() -> None:
+    req = DecisionRequest(
+        decision_type="mcp_tool_router",
+        candidates=[
+            "server::alpha",
+            "server::beta",
+            "server::gamma",
+        ],
+        context={"intent": "query latency"},
+    )
+    prompt = compact_candidate_prompt(req)
+
+    assert "query latency" in prompt
+    assert "Best matching candidate:" in prompt
+    assert "server::alpha" not in prompt
+    assert "server::beta" not in prompt
+    assert "server::gamma" not in prompt

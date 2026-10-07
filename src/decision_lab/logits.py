@@ -137,3 +137,30 @@ def default_candidate_prompt(request: DecisionRequest) -> str:
         )
         + "Choose exactly one candidate:\n"
     )
+
+
+def compact_candidate_prompt(request: DecisionRequest) -> str:
+    """Prompt for scalable candidate continuation scoring.
+
+    The bounded candidate set is enforced by the continuations being scored, so
+    the full list does not need to be duplicated inside every candidate sequence.
+    This keeps prompt tokens roughly constant as candidate count grows.
+    """
+    context_lines = [
+        f"{key}: {value}"
+        for key, value in sorted(
+            request.context.items()
+        )
+    ]
+
+    return (
+        f"Decision type: {request.decision_type}\n"
+        + (
+            "Context:\n"
+            + "\n".join(context_lines)
+            + "\n"
+            if context_lines
+            else ""
+        )
+        + "Best matching candidate: "
+    )
