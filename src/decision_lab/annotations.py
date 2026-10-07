@@ -29,6 +29,7 @@ class AnnotationSummary:
     case_count: int
     covered_count: int
     expected_abstain_count: int
+    coverage_counts: dict[str, int]
     ambiguity_counts: dict[str, int]
     risk_counts: dict[str, int]
     effect_counts: dict[str, int]
@@ -42,6 +43,7 @@ def validate_routing_annotations(
     if not cases:
         raise ValueError("cases must not be empty")
 
+    coverage_counts: dict[str, int] = {}
     ambiguity_counts: dict[str, int] = {}
     risk_counts: dict[str, int] = {}
     effect_counts: dict[str, int] = {}
@@ -175,6 +177,7 @@ def validate_routing_annotations(
         if expected_abstain:
             expected_abstain_count += 1
 
+        _increment(coverage_counts, coverage)
         _increment(ambiguity_counts, ambiguity)
         _increment(risk_counts, risk)
         _increment(effect_counts, effect)
@@ -183,6 +186,7 @@ def validate_routing_annotations(
         case_count=len(cases),
         covered_count=covered_count,
         expected_abstain_count=expected_abstain_count,
+        coverage_counts=dict(sorted(coverage_counts.items())),
         ambiguity_counts=dict(sorted(ambiguity_counts.items())),
         risk_counts=dict(sorted(risk_counts.items())),
         effect_counts=dict(sorted(effect_counts.items())),
