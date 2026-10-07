@@ -115,3 +115,40 @@ def test_source_grounded_case_requires_evidence_refs() -> None:
         assert "evidence_refs" in str(exc)
     else:
         raise AssertionError("source-grounded case without evidence must fail")
+
+
+
+def test_underspecified_abstention_uses_no_gold_and_plausible_candidates() -> None:
+    base = _case(
+        ambiguity="underspecified",
+        expected_abstain=True,
+        plausible_candidates=["server::instant", "server::range"],
+    )
+    case = BenchmarkCase(
+        case_id=base.case_id,
+        decision_type=base.decision_type,
+        context=base.context,
+        candidates=base.candidates,
+        gold_candidate=None,
+        metadata=base.metadata,
+    )
+
+    summary = validate_routing_annotations([case])
+
+    assert summary.expected_abstain_count == 1
+
+
+def test_unsupported_case_must_not_declare_gold() -> None:
+    try:
+        validate_routing_annotations(
+            [
+                _case(
+                    coverage="unsupported",
+                    expected_abstain=True,
+                )
+            ]
+        )
+    except ValueError as exc:
+        assert "must not declare a gold" in str(exc)
+    else:
+        raise AssertionError("unsupported case with gold must fail")
