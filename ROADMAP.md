@@ -47,6 +47,7 @@
 - [x] fail-closed one-shot cloud-GPU replay harness
 - [x] same-base autoregressive structured-output adapter
 - [x] AnyJev-inspired candidate-prior correction baseline
+- [x] combined M5 + M6 GPU replay protocol with grouped abstention FAR
 - [ ] rented-GPU retained three-arm stress artifact
 - [ ] exact option-rotation / label-prior ablation
 - [ ] Decision LoRA
