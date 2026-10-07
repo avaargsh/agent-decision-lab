@@ -31,8 +31,9 @@
 - [x] semantic embedding snapshot / gold-neighbour ranker contract
 - [ ] retained semantic-nearest-neighbour distractor construction
 - [x] frozen real MCP inventory snapshot corpus
-- [ ] real labeled benchmark corpus
-- [ ] ambiguity/risk annotation guidelines
+- [x] source-grounded near-neighbour labeled corpus
+- [ ] production/trace-backed labeled benchmark corpus
+- [x] ambiguity/risk annotation guidelines
 
 ## v0.3 — Model adapters
 - [x] frozen-LM candidate-logit adapter
