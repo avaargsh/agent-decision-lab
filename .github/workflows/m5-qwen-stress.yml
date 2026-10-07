@@ -1,0 +1,127 @@
+name: m5-qwen-stress
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Hugging Face causal LM checkpoint
+        required: true
+        default: Qwen/Qwen3-0.6B
+  push:
+    paths:
+      - ".github/m5-model-stress.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  qwen-stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MODEL: ${{ inputs.model || 'Qwen/Qwen3-0.6B' }}
+
+    steps:
+      - name: Checkout benchmark repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install model dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -e ".[models]"
+
+      - name: Checkout pinned AWS Labs MCP source
+        uses: actions/checkout@v4
+        with:
+          repository: awslabs/mcp
+          ref: 5abe7e82ba70556f80d2f42558d63a20aa3ce56c
+          path: .upstream/awslabs-mcp
+          sparse-checkout: |
+            src
+
+      - name: Build frozen inventory and stress inputs
+        run: |
+          mkdir -p artifacts
+          python scripts/extract_mcp_inventory.py \
+            --root .upstream/awslabs-mcp \
+            --repository awslabs/mcp \
+            --revision 5abe7e82ba70556f80d2f42558d63a20aa3ce56c \
+            --inventory-id awslabs-mcp@5abe7e82ba70 \
+            --output artifacts/awslabs-mcp.inventory.json
+
+          python scripts/build_m5_stress_artifacts.py \
+            --inventory artifacts/awslabs-mcp.inventory.json \
+            --calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl \
+            --test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl \
+            --candidate-counts 5,10,20,50,100 \
+            --strategies random \
+            --seed agent-decision-benchmark-v0.2 \
+            --output-dir artifacts/m5-inputs
+
+      - name: Run Qwen frozen-logit vs structured-output stress matrix
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python examples/run_m5_qwen_stress.py \
+            --model "$MODEL" \
+            --inventory artifacts/awslabs-mcp.inventory.json \
+            --calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl \
+            --base-test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl \
+            --covered artifacts/m5-inputs/test.random.covered.jsonl \
+            --missing artifacts/m5-inputs/test.random.missing.jsonl \
+            --risk-budget 0.5 \
+            --min-coverage 0.25 \
+            --permutation-cases-per-k 2 \
+            --output artifacts/m5-qwen-stress.json
+
+      - name: Verify measured matrix
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("artifacts/m5-qwen-stress.json").read_text()
+          )
+          assert report["schema_version"] == "m5-model-stress/v1"
+          assert report["metadata"]["inventory_tool_count"] == 804
+
+          for arm in ("frozen_logits", "structured_output"):
+              ks = [
+                  item["candidate_count"]
+                  for item in report[arm]["by_candidate_count"]
+              ]
+              assert ks == [5, 10, 20, 50, 100], ks
+              assert 0.0 <= report[arm]["transfer_threshold"] <= 1.0
+
+          print("validated K=5/10/20/50/100 for both model arms")
+          PY
+
+      - name: Capture environment
+        if: always()
+        run: |
+          {
+            echo "github_sha=$GITHUB_SHA"
+            echo "model=$MODEL"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            python --version
+            uname -a
+            lscpu || true
+            free -h || true
+            nvidia-smi || true
+            python -m pip freeze
+          } > artifacts/environment.txt
+
+      - name: Upload measured M5 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5-qwen-stress
+          path: artifacts/
+          if-no-files-found: error
