@@ -8,13 +8,19 @@ from pathlib import Path
 from decision_lab.benchmark import dump_jsonl, load_jsonl
 from decision_lab.dataset_validation import validate_calibration_test_pair
 from decision_lab.inventory import inventory_digest, load_inventory
+from decision_lab.semantic_embeddings import (
+    embedding_digest,
+    load_embedding_snapshot,
+    semantic_gold_neighbor_ranker,
+    validate_embedding_snapshot,
+)
 from decision_lab.stress_suite import (
     build_candidate_count_suite,
     build_missing_candidate_suite,
 )
 
 
-SCHEMA_VERSION = "m5-stress-suite/v1"
+SCHEMA_VERSION = "m5-stress-suite/v2"
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,6 +38,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--strategies",
         default="random,lexical",
+    )
+    parser.add_argument(
+        "--semantic-embeddings",
+        default=None,
+        help=(
+            "Content-addressed semantic embedding snapshot. Required when "
+            "'semantic' is requested in --strategies."
+        ),
     )
     parser.add_argument(
         "--seed",
@@ -56,6 +70,14 @@ def main() -> None:
         if value.strip()
     )
 
+    supported = {"random", "lexical", "semantic"}
+    unknown = sorted(set(strategies) - supported)
+    if unknown:
+        raise ValueError(
+            "unsupported strategies: "
+            + ", ".join(unknown)
+        )
+
     inventory = load_inventory(args.inventory)
     calibration_cases = load_jsonl(args.calibration)
     test_cases = load_jsonl(args.test)
@@ -65,6 +87,25 @@ def main() -> None:
         test_cases,
         inventory=inventory,
     )
+
+    semantic_snapshot = None
+    semantic_ranker = None
+    if "semantic" in strategies:
+        if not args.semantic_embeddings:
+            raise ValueError(
+                "--semantic-embeddings is required for semantic strategy"
+            )
+        semantic_snapshot = load_embedding_snapshot(
+            args.semantic_embeddings
+        )
+        validate_embedding_snapshot(
+            semantic_snapshot,
+            inventory,
+        )
+        semantic_ranker = semantic_gold_neighbor_ranker(
+            semantic_snapshot,
+            inventory,
+        )
 
     manifest = {
         "schema_version": SCHEMA_VERSION,
@@ -89,17 +130,34 @@ def main() -> None:
         "generated": [],
     }
 
+    if semantic_snapshot is not None:
+        manifest["semantic_embeddings"] = {
+            "embedding_id": semantic_snapshot.embedding_id,
+            "sha256": embedding_digest(
+                semantic_snapshot
+            ),
+            "dimension": semantic_snapshot.dimension,
+            "model": semantic_snapshot.model,
+            "text_recipe": semantic_snapshot.text_recipe,
+        }
+
     for split_name, cases in (
         ("calibration", calibration_cases),
         ("test", test_cases),
     ):
         for strategy in strategies:
+            hard_negative_ranker = (
+                semantic_ranker
+                if strategy == "semantic"
+                else None
+            )
             covered = build_candidate_count_suite(
                 cases,
                 inventory,
                 candidate_counts=counts,
                 strategy=strategy,
                 seed=args.seed,
+                hard_negative_ranker=hard_negative_ranker,
             )
             missing = build_missing_candidate_suite(
                 cases,
@@ -107,6 +165,7 @@ def main() -> None:
                 candidate_counts=counts,
                 strategy=strategy,
                 seed=args.seed,
+                hard_negative_ranker=hard_negative_ranker,
             )
 
             for coverage, generated_cases in (
