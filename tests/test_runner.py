@@ -65,3 +65,27 @@ def test_structured_output_adapter() -> None:
 
     report = run_benchmark(StructuredOutputAdapter(generate), CASES)
     assert report.accuracy == 1.0
+
+
+
+def test_benchmark_runner_rejects_no_gold_abstention_cases() -> None:
+    case = BenchmarkCase(
+        case_id="abstain-1",
+        decision_type="router",
+        context={"intent": "ambiguous"},
+        candidates=["a", "b"],
+        gold_candidate=None,
+        metadata={"expected_abstain": True},
+    )
+
+    try:
+        run_benchmark(
+            MappingScoreAdapter(
+                lambda request: {"a": 0.5, "b": 0.5}
+            ),
+            [case],
+        )
+    except ValueError as exc:
+        assert "requires single-gold cases" in str(exc)
+    else:
+        raise AssertionError("closed-set benchmark must reject no-gold cases")

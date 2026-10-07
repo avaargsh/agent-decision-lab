@@ -34,6 +34,7 @@
 - [x] source-grounded near-neighbour labeled corpus
 - [ ] production/trace-backed labeled benchmark corpus
 - [x] ambiguity/risk annotation guidelines
+- [x] explicit underspecified / multi-valid / missing / unsupported abstention corpus
 
 ## v0.3 — Model adapters
 - [x] frozen-LM candidate-logit adapter

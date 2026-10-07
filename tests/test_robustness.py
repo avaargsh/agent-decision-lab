@@ -157,3 +157,32 @@ def test_threshold_transfer_reuses_source_operating_point_without_refit() -> Non
     assert transfer.coverage_delta == 0.5
     assert transfer.risk_delta == 0.5
     assert transfer.false_automation_rate_delta == 0.5
+
+
+
+def test_abstention_evaluator_accepts_no_gold_ambiguous_cases() -> None:
+    case = BenchmarkCase(
+        case_id="ambiguous-1",
+        decision_type="router",
+        context={"intent": "check the issue"},
+        candidates=["logs", "metrics"],
+        gold_candidate=None,
+        metadata={
+            "expected_abstain": True,
+            "coverage": "covered",
+            "ambiguity": "underspecified",
+        },
+    )
+
+    report = evaluate_abstention_robustness(
+        MappingScoreAdapter(
+            lambda request: {"logs": 0.55, "metrics": 0.45}
+        ),
+        [case],
+        threshold=0.8,
+    )
+
+    assert report.expected_abstain_case_count == 1
+    assert report.false_accept_rate == 0.0
+    assert report.covered_case_count == 0
+    assert report.cases[0].correct_when_covered is None
