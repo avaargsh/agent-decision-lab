@@ -76,7 +76,7 @@ def load_inventory(path: str | Path) -> ToolInventory:
         )
         for item in obj["tools"]
     )
-    return ToolInventory(
+    inventory = ToolInventory(
         inventory_id=obj["inventory_id"],
         tools=tools,
         source=dict(obj.get("source", {})),
@@ -85,6 +85,17 @@ def load_inventory(path: str | Path) -> ToolInventory:
             INVENTORY_SCHEMA_VERSION,
         ),
     )
+
+    declared_digest = obj.get("sha256")
+    if declared_digest is not None:
+        actual_digest = inventory_digest(inventory)
+        if declared_digest != actual_digest:
+            raise ValueError(
+                "inventory sha256 mismatch: "
+                f"declared {declared_digest}, actual {actual_digest}"
+            )
+
+    return inventory
 
 
 def write_inventory(
