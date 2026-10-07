@@ -25,3 +25,4 @@ jobs:
       - run: python -m pip install -U pip
       - run: pip install -e ".[dev]"
       - run: pytest -q
+      - run: bash -n scripts/run_m5_gpu_replay.sh
