@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
+
 from decision_lab.benchmark import BenchmarkCase
 from decision_lab.inventory import (
     ToolSpec,
     inventory_digest,
+    load_inventory,
     make_inventory,
+    write_inventory,
 )
 from decision_lab.stress_suite import (
     build_candidate_count_suite,
@@ -60,6 +64,37 @@ def _case() -> BenchmarkCase:
             "source": "fixture",
         },
     )
+
+
+def test_inventory_round_trip_verifies_declared_digest(tmp_path) -> None:
+    inventory = _inventory()
+    path = tmp_path / "inventory.json"
+
+    write_inventory(inventory, path)
+    loaded = load_inventory(path)
+
+    assert loaded == inventory
+    assert inventory_digest(loaded) == inventory_digest(inventory)
+
+
+def test_inventory_load_rejects_digest_mismatch(tmp_path) -> None:
+    inventory = _inventory()
+    path = tmp_path / "inventory.json"
+    write_inventory(inventory, path)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["tools"][0]["description"] = "tampered"
+    path.write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+
+    try:
+        load_inventory(path)
+    except ValueError as exc:
+        assert "sha256 mismatch" in str(exc)
+    else:
+        raise AssertionError("tampered inventory must fail")
 
 
 def test_candidate_count_suite_is_deterministic_and_preserves_gold() -> None:
