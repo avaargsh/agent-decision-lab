@@ -13,6 +13,9 @@ from decision_lab.logits import (
     FrozenLogitAdapter,
     compact_candidate_prompt,
 )
+from decision_lab.prior_correction import (
+    PriorCorrectedFrozenLogitAdapter,
+)
 from decision_lab.provenance import dataset_provenance
 from decision_lab.stress_experiment import (
     run_calibrated_stress_experiment,
@@ -44,6 +47,12 @@ def parse_args() -> argparse.Namespace:
             "Maximum frozen-logit candidate continuations per forward pass. "
             "Does not change the candidate set or scoring semantics."
         ),
+    )
+    parser.add_argument(
+        "--prior-strength",
+        type=float,
+        default=1.0,
+        help="Candidate-prior subtraction strength for the corrected arm.",
     )
     parser.add_argument(
         "--permutation-cases-per-k",
@@ -89,6 +98,24 @@ def main() -> None:
         permutation_cases_per_k=args.permutation_cases_per_k,
     )
 
+    prior_corrected = PriorCorrectedFrozenLogitAdapter(
+        backend=frozen_backend,
+        prompt_builder=compact_candidate_prompt,
+        prior_strength=args.prior_strength,
+        name="prior-corrected-frozen-logits",
+    )
+    prior_corrected_report = run_calibrated_stress_experiment(
+        prior_corrected,
+        calibration_cases=calibration_cases,
+        base_test_cases=base_test_cases,
+        covered_stress_cases=covered_cases,
+        missing_stress_cases=missing_cases,
+        risk_budget=args.risk_budget,
+        min_coverage=args.min_coverage,
+        permutation_cases_per_k=args.permutation_cases_per_k,
+    )
+
+    del prior_corrected
     del frozen
     del frozen_backend
     gc.collect()
@@ -109,7 +136,7 @@ def main() -> None:
     )
 
     payload = {
-        "schema_version": "m5-model-stress/v1",
+        "schema_version": "m5-model-stress/v2",
         "metadata": {
             "model": args.model,
             "inventory_id": inventory.inventory_id,
@@ -117,12 +144,16 @@ def main() -> None:
             "inventory_tool_count": len(inventory.tools),
             "stress_strategy": "random",
             "frozen_prompt_variant": "compact-candidate-v1",
+            "prior_correction_variant": "candidate-prior-subtraction-v1",
+            "prior_strength": args.prior_strength,
             "candidate_batch_size": args.candidate_batch_size,
             "risk_budget": args.risk_budget,
             "min_coverage": args.min_coverage,
             "permutation_cases_per_k": args.permutation_cases_per_k,
             "warning": (
                 "Synthetic intents over real upstream MCP tool identities. "
+                "Candidate-prior subtraction is AnyJev-inspired but is not "
+                "an implementation of AnyJev L0. "
                 "This is controlled benchmark evidence, not production traffic."
             ),
         },
@@ -145,6 +176,9 @@ def main() -> None:
             ),
         },
         "frozen_logits": asdict(frozen_report),
+        "prior_corrected_logits": asdict(
+            prior_corrected_report
+        ),
         "structured_output": asdict(structured_report),
     }
 
@@ -167,14 +201,22 @@ def main() -> None:
         json.dumps(
             {
                 "output": str(output_path),
-                "frozen_threshold": frozen_report.transfer_threshold,
-                "structured_threshold": structured_report.transfer_threshold,
                 "candidate_counts": [
                     item.candidate_count
                     for item in frozen_report.by_candidate_count
                 ],
-                "frozen_base_accuracy": frozen_report.base_test.accuracy,
-                "structured_base_accuracy": structured_report.base_test.accuracy,
+                "frozen": {
+                    "threshold": frozen_report.transfer_threshold,
+                    "base_accuracy": frozen_report.base_test.accuracy,
+                },
+                "prior_corrected": {
+                    "threshold": prior_corrected_report.transfer_threshold,
+                    "base_accuracy": prior_corrected_report.base_test.accuracy,
+                },
+                "structured": {
+                    "threshold": structured_report.transfer_threshold,
+                    "base_accuracy": structured_report.base_test.accuracy,
+                },
             },
             indent=2,
         )
