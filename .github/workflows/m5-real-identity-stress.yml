@@ -1,0 +1,105 @@
+name: m5-real-identity-stress
+
+on:
+  pull_request:
+    paths:
+      - "benchmarks/mcp_tool_router/v2.real_identity.*"
+      - "src/decision_lab/dataset_validation.py"
+      - "src/decision_lab/stress_suite.py"
+      - "scripts/build_m5_stress_artifacts.py"
+      - ".github/workflows/m5-real-identity-stress.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-stress-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout benchmark repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install benchmark package
+        run: pip install -e .
+
+      - name: Checkout pinned AWS Labs MCP source
+        uses: actions/checkout@v4
+        with:
+          repository: awslabs/mcp
+          ref: 5abe7e82ba70556f80d2f42558d63a20aa3ce56c
+          path: .upstream/awslabs-mcp
+          sparse-checkout: |
+            src
+
+      - name: Rebuild frozen inventory
+        run: |
+          mkdir -p artifacts
+          python scripts/extract_mcp_inventory.py \
+            --root .upstream/awslabs-mcp \
+            --repository awslabs/mcp \
+            --revision 5abe7e82ba70556f80d2f42558d63a20aa3ce56c \
+            --inventory-id awslabs-mcp@5abe7e82ba70 \
+            --output artifacts/awslabs-mcp.inventory.json
+
+      - name: Verify inventory identity
+        run: |
+          python - <<'PY'
+          from decision_lab.inventory import load_inventory, inventory_digest
+
+          expected = "9e36175089bbba8714ad9e5db5efddd92812516937cf8acd3c124d61517e3d67"
+          inventory = load_inventory("artifacts/awslabs-mcp.inventory.json")
+          actual = inventory_digest(inventory)
+          assert len(inventory.tools) == 804, len(inventory.tools)
+          assert actual == expected, (actual, expected)
+          print(f"inventory_tools={len(inventory.tools)} sha256={actual}")
+          PY
+
+      - name: Build M5 stress artifacts
+        run: |
+          python scripts/build_m5_stress_artifacts.py \
+            --inventory artifacts/awslabs-mcp.inventory.json \
+            --calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl \
+            --test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl \
+            --candidate-counts 5,10,20,50,100 \
+            --strategies random,lexical \
+            --seed agent-decision-benchmark-v0.2 \
+            --output-dir artifacts/m5
+
+      - name: Verify generated contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("artifacts/m5/manifest.json").read_text()
+          )
+          assert manifest["schema_version"] == "m5-stress-suite/v1"
+          assert manifest["candidate_counts"] == [5, 10, 20, 50, 100]
+          assert manifest["strategies"] == ["random", "lexical"]
+          assert manifest["inventory"]["tool_count"] == 804
+          assert manifest["base"]["calibration"]["case_count"] == 16
+          assert manifest["base"]["test"]["case_count"] == 16
+
+          generated = manifest["generated"]
+          assert len(generated) == 8, len(generated)
+          for item in generated:
+              assert item["case_count"] == 80, item
+
+          print("generated_files=8 cases_per_file=80")
+          PY
+
+      - name: Upload reproducible M5 stress evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5-real-identity-stress-v2
+          path: |
+            artifacts/awslabs-mcp.inventory.json
+            artifacts/m5/
+          if-no-files-found: error
