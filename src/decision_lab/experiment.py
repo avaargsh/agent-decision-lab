@@ -29,6 +29,10 @@ def calibration_examples(
     examples: list[CalibrationExample] = []
 
     for case in cases:
+        if case.gold_candidate is None:
+            raise ValueError(
+                f"calibration requires a gold candidate: {case.case_id}"
+            )
         request = DecisionRequest(
             decision_type=case.decision_type,
             candidates=case.candidates,
