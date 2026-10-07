@@ -24,6 +24,12 @@
 - [x] p50 / p95 latency reporting
 - [x] tokens-processed accounting
 - [x] test-score cache for raw/calibrated reuse
+- [x] candidate-order permutation robustness / flip-rate evaluation
+- [x] missing-candidate and OOD abstention FAR/FRR evaluation
+- [x] source-to-target threshold-transfer drift evaluation
+- [ ] candidate-count scaling at K = 5 / 10 / 20 / 50 / 100
+- [ ] semantic-nearest-neighbour distractor construction
+- [ ] frozen real MCP inventory snapshot corpus
 - [ ] real labeled benchmark corpus
 - [ ] ambiguity/risk annotation guidelines
 
@@ -39,6 +45,7 @@
 - [x] same-base autoregressive structured-output adapter
 - [x] captured Frozen vs Structured same-base comparison artifact
 - [x] optimized batched-Frozen vs Structured performance rerun
+- [ ] AnyJev-style bias-corrected candidate-logit baseline
 - [ ] Decision LoRA
 - [ ] dedicated decision-head model
 - [ ] encoder baseline
