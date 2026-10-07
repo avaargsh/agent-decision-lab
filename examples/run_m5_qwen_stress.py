@@ -37,6 +37,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--risk-budget", type=float, default=0.5)
     parser.add_argument("--min-coverage", type=float, default=0.25)
     parser.add_argument(
+        "--candidate-batch-size",
+        type=int,
+        default=16,
+        help=(
+            "Maximum frozen-logit candidate continuations per forward pass. "
+            "Does not change the candidate set or scoring semantics."
+        ),
+    )
+    parser.add_argument(
         "--permutation-cases-per-k",
         type=int,
         default=2,
@@ -62,6 +71,7 @@ def main() -> None:
     frozen_backend = TransformersCausalLMBackend(
         model_id=args.model,
         length_normalize=True,
+        candidate_batch_size=args.candidate_batch_size,
     )
     frozen = FrozenLogitAdapter(
         backend=frozen_backend,
@@ -107,6 +117,7 @@ def main() -> None:
             "inventory_tool_count": len(inventory.tools),
             "stress_strategy": "random",
             "frozen_prompt_variant": "compact-candidate-v1",
+            "candidate_batch_size": args.candidate_batch_size,
             "risk_budget": args.risk_budget,
             "min_coverage": args.min_coverage,
             "permutation_cases_per_k": args.permutation_cases_per_k,
