@@ -100,10 +100,13 @@ def validate_routing_annotations(
                 f"{case.case_id} expected_abstain must be boolean"
             )
 
-        rationale = metadata.get("gold_rationale")
+        rationale = metadata.get("label_rationale")
+        if rationale is None:
+            rationale = metadata.get("gold_rationale")
         if not isinstance(rationale, str) or len(rationale.strip()) < 20:
             raise ValueError(
-                f"{case.case_id} gold_rationale must be a substantive string"
+                f"{case.case_id} label_rationale/gold_rationale "
+                "must be a substantive string"
             )
 
         label_basis = metadata.get("label_basis")
