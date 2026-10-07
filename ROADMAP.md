@@ -28,7 +28,8 @@
 - [x] missing-candidate and OOD abstention FAR/FRR evaluation
 - [x] source-to-target threshold-transfer drift evaluation
 - [x] candidate-count workload at K = 5 / 10 / 20 / 50 / 100
-- [ ] semantic-nearest-neighbour distractor construction
+- [x] semantic embedding snapshot / gold-neighbour ranker contract
+- [ ] retained semantic-nearest-neighbour distractor construction
 - [x] frozen real MCP inventory snapshot corpus
 - [ ] real labeled benchmark corpus
 - [ ] ambiguity/risk annotation guidelines
