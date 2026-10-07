@@ -137,6 +137,12 @@ def validate_trace_backed_cases(
         )
         source_groups.add(source_group)
 
+        if provenance.get("identifier_pseudonymization") != "salted_sha256":
+            raise ValueError(
+                f"{case.case_id} identifier_pseudonymization must be "
+                "'salted_sha256'"
+            )
+
         declared_fingerprint = _required_sha(
             case.case_id,
             provenance,
@@ -281,6 +287,7 @@ def build_trace_provenance(
     source_record_sha256: str,
     source_group_sha256: str,
     reviewer_count: int,
+    identifier_pseudonymization: str = "salted_sha256",
     benchmark_release_approved: bool,
     sanitization: dict[str, bool],
 ) -> dict[str, Any]:
@@ -293,6 +300,7 @@ def build_trace_provenance(
         "source_artifact_sha256": source_artifact_sha256,
         "source_record_sha256": source_record_sha256,
         "source_group_sha256": source_group_sha256,
+        "identifier_pseudonymization": identifier_pseudonymization,
         "released_case_sha256": trace_case_fingerprint(case),
         "reviewer_count": reviewer_count,
         "benchmark_release_approved": benchmark_release_approved,
