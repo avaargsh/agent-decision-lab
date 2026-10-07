@@ -11,6 +11,10 @@ on:
         description: Frozen-logit candidates per forward pass
         required: true
         default: "16"
+      prior_strength:
+        description: Candidate-prior subtraction strength
+        required: true
+        default: "1.0"
 
 permissions:
   contents: read
@@ -22,6 +26,7 @@ jobs:
     env:
       MODEL: ${{ inputs.model }}
       CANDIDATE_BATCH_SIZE: ${{ inputs.candidate_batch_size }}
+      PRIOR_STRENGTH: ${{ inputs.prior_strength }}
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
     steps:
