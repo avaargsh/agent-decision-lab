@@ -69,10 +69,17 @@ def validate_calibration_test_pair(
                     f"{case.case_id} candidates absent from inventory: "
                     + ", ".join(sorted(missing))
                 )
-            if case.gold_candidate not in inventory_names:
+            coverage = case.metadata.get("coverage")
+            if case.gold_candidate is not None:
+                if case.gold_candidate not in inventory_names:
+                    raise ValueError(
+                        f"{case.case_id} gold candidate absent from inventory: "
+                        f"{case.gold_candidate}"
+                    )
+            elif coverage not in {"unsupported", "covered"}:
                 raise ValueError(
-                    f"{case.case_id} gold candidate absent from inventory: "
-                    f"{case.gold_candidate}"
+                    f"{case.case_id} missing gold candidate is only valid for "
+                    "unsupported or ambiguous covered abstention cases"
                 )
 
     return SplitValidationReport(
