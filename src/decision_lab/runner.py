@@ -117,6 +117,12 @@ def run_benchmark(
 ) -> BenchmarkReport:
     if not cases:
         raise ValueError("cases must not be empty")
+    no_gold = [case.case_id for case in cases if case.gold_candidate is None]
+    if no_gold:
+        raise ValueError(
+            "run_benchmark requires single-gold cases; no gold for: "
+            + ", ".join(no_gold)
+        )
     if risk_budget is None and min_coverage != 0.0:
         raise ValueError("min_coverage requires risk_budget")
 
