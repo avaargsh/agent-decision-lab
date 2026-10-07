@@ -1,0 +1,68 @@
+name: mcp-inventory-snapshot
+
+on:
+  pull_request:
+    paths:
+      - "src/decision_lab/inventory.py"
+      - "src/decision_lab/inventory_extract.py"
+      - "scripts/extract_mcp_inventory.py"
+      - ".github/workflows/mcp-inventory-snapshot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  awslabs-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout benchmark repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install benchmark package
+        run: pip install -e .
+
+      - name: Checkout pinned AWS Labs MCP source
+        uses: actions/checkout@v4
+        with:
+          repository: awslabs/mcp
+          ref: 5abe7e82ba70556f80d2f42558d63a20aa3ce56c
+          path: .upstream/awslabs-mcp
+          sparse-checkout: |
+            src
+
+      - name: Extract content-addressed tool inventory
+        run: |
+          mkdir -p artifacts
+          python scripts/extract_mcp_inventory.py \
+            --root .upstream/awslabs-mcp \
+            --repository awslabs/mcp \
+            --revision 5abe7e82ba70556f80d2f42558d63a20aa3ce56c \
+            --inventory-id awslabs-mcp@5abe7e82ba70 \
+            --output artifacts/awslabs-mcp.inventory.json
+
+      - name: Validate inventory size and digest
+        run: |
+          python - <<'PY'
+          from decision_lab.inventory import load_inventory, inventory_digest
+          inventory = load_inventory("artifacts/awslabs-mcp.inventory.json")
+          count = len(inventory.tools)
+          print(f"tool_count={count}")
+          print(f"sha256={inventory_digest(inventory)}")
+          if count < 100:
+              raise SystemExit(
+                  f"expected at least 100 extracted tools, got {count}"
+              )
+          PY
+
+      - name: Upload frozen inventory evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: awslabs-mcp-inventory-5abe7e82ba70
+          path: artifacts/awslabs-mcp.inventory.json
+          if-no-files-found: error
