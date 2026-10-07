@@ -96,13 +96,13 @@ def test_quality_experiment_freezes_calibration_threshold_for_abstention() -> No
         abstention_cases=abstention,
         risk_budget=0.0,
         min_coverage=0.5,
-        threshold_grid=[0.8],
+        threshold_grid=[0.99],
     )
 
-    assert report.transfer_threshold == 0.8
+    assert report.transfer_threshold == 0.99
     assert report.threshold_selection == "calibration_risk_budget"
     assert report.closed_test.accuracy == 1.0
-    assert report.abstention.threshold == 0.8
+    assert report.abstention.threshold == 0.99
     assert report.abstention.false_accept_rate == 0.5
 
     by_reason = {
