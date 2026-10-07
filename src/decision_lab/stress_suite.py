@@ -10,7 +10,7 @@ from .benchmark import BenchmarkCase
 from .inventory import ToolInventory, ToolSpec, inventory_digest
 
 
-DistractorStrategy = Literal["random", "lexical"]
+DistractorStrategy = Literal["random", "lexical", "semantic"]
 DistractorRanker = Callable[
     [BenchmarkCase, Sequence[ToolSpec]],
     Sequence[ToolSpec],
@@ -234,6 +234,11 @@ def _select_distractors(
         return list(
             lexical_hard_negative_ranker(case, distractors)
         )[:count]
+
+    if strategy == "semantic":
+        raise ValueError(
+            "semantic distractor strategy requires an explicit hard-negative ranker"
+        )
 
     if strategy != "random":
         raise ValueError(f"unsupported distractor strategy: {strategy}")
