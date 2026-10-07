@@ -266,3 +266,41 @@ def test_distinct_source_groups_pass_split_isolation() -> None:
 
     assert report.calibration_group_count == 1
     assert report.test_group_count == 1
+
+
+
+def test_trace_case_rejects_unsalted_identifier_pseudonymization() -> None:
+    base = BenchmarkCase(
+        case_id="c1",
+        decision_type="router",
+        context={"intent": "sanitized"},
+        candidates=["a", "b"],
+        gold_candidate="a",
+        metadata={"ambiguity": "clear"},
+    )
+
+    try:
+        build_trace_provenance(
+            base,
+            source_type="production_trace",
+            transformation="verbatim_sanitized",
+            label_source="observed_tool_selection",
+            source_artifact_sha256=_sha("artifact"),
+            source_record_sha256=_sha("record"),
+            source_group_sha256=_sha("group"),
+            reviewer_count=1,
+            identifier_pseudonymization="plain_sha256",
+            benchmark_release_approved=True,
+            sanitization={
+                "pii_removed": True,
+                "secrets_removed": True,
+                "customer_identifiers_removed": True,
+                "free_text_reviewed": True,
+            },
+        )
+    except ValueError as exc:
+        assert "identifier_pseudonymization" in str(exc)
+    else:
+        raise AssertionError(
+            "public trace identifiers must use salted pseudonyms"
+        )
