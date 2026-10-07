@@ -46,17 +46,31 @@ jobs:
             --inventory-id awslabs-mcp@5abe7e82ba70 \
             --output artifacts/awslabs-mcp.inventory.json
 
-      - name: Validate inventory size and digest
+      - name: Verify frozen inventory identity
         run: |
           python - <<'PY'
           from decision_lab.inventory import load_inventory, inventory_digest
+
+          EXPECTED_COUNT = 804
+          EXPECTED_DIGEST = (
+              "9e36175089bbba8714ad9e5db5efddd92812516937cf8acd3c124d61517e3d67"
+          )
+
           inventory = load_inventory("artifacts/awslabs-mcp.inventory.json")
           count = len(inventory.tools)
+          digest = inventory_digest(inventory)
+
           print(f"tool_count={count}")
-          print(f"sha256={inventory_digest(inventory)}")
-          if count < 100:
+          print(f"sha256={digest}")
+
+          if count != EXPECTED_COUNT:
               raise SystemExit(
-                  f"expected at least 100 extracted tools, got {count}"
+                  f"inventory count drift: expected {EXPECTED_COUNT}, got {count}"
+              )
+          if digest != EXPECTED_DIGEST:
+              raise SystemExit(
+                  "inventory digest drift: "
+                  f"expected {EXPECTED_DIGEST}, got {digest}"
               )
           PY
 
