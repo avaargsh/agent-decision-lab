@@ -3,6 +3,7 @@ set -euo pipefail
 
 MODEL="${MODEL:-Qwen/Qwen3-0.6B}"
 CANDIDATE_BATCH_SIZE="${CANDIDATE_BATCH_SIZE:-16}"
+PRIOR_STRENGTH="${PRIOR_STRENGTH:-1.0}"
 RISK_BUDGET="${RISK_BUDGET:-0.5}"
 MIN_COVERAGE="${MIN_COVERAGE:-0.25}"
 PERMUTATION_CASES_PER_K="${PERMUTATION_CASES_PER_K:-2}"
@@ -81,12 +82,39 @@ PY
 
 python scripts/build_m5_stress_artifacts.py   --inventory "$OUT_DIR/awslabs-mcp.inventory.json"   --calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl   --test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl   --candidate-counts 5,10,20,50,100   --strategies random   --seed agent-decision-benchmark-v0.2   --output-dir "$OUT_DIR/m5-inputs"
 
-python examples/run_m5_qwen_stress.py   --model "$MODEL"   --inventory "$OUT_DIR/awslabs-mcp.inventory.json"   --calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl   --base-test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl   --covered "$OUT_DIR/m5-inputs/test.random.covered.jsonl"   --missing "$OUT_DIR/m5-inputs/test.random.missing.jsonl"   --candidate-batch-size "$CANDIDATE_BATCH_SIZE"   --risk-budget "$RISK_BUDGET"   --min-coverage "$MIN_COVERAGE"   --permutation-cases-per-k "$PERMUTATION_CASES_PER_K"   --output "$OUT_DIR/m5-qwen-stress.json"
+python examples/run_m5_qwen_stress.py   --model "$MODEL"   --inventory "$OUT_DIR/awslabs-mcp.inventory.json"   --calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl   --base-test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl   --covered "$OUT_DIR/m5-inputs/test.random.covered.jsonl"   --missing "$OUT_DIR/m5-inputs/test.random.missing.jsonl"   --candidate-batch-size "$CANDIDATE_BATCH_SIZE"   --prior-strength "$PRIOR_STRENGTH"   --risk-budget "$RISK_BUDGET"   --min-coverage "$MIN_COVERAGE"   --permutation-cases-per-k "$PERMUTATION_CASES_PER_K"   --output "$OUT_DIR/m5-qwen-stress.json"
+
+python - "$OUT_DIR/m5-qwen-stress.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text())
+if report["schema_version"] != "m5-model-stress/v2":
+    raise SystemExit("unexpected model-stress schema")
+if report["metadata"]["inventory_tool_count"] != 804:
+    raise SystemExit("unexpected inventory size")
+
+for arm in (
+    "frozen_logits",
+    "prior_corrected_logits",
+    "structured_output",
+):
+    ks = [
+        item["candidate_count"]
+        for item in report[arm]["by_candidate_count"]
+    ]
+    if ks != [5, 10, 20, 50, 100]:
+        raise SystemExit(f"{arm} has unexpected candidate counts: {ks}")
+
+print("verified three model arms across K=5/10/20/50/100")
+PY
 
 {
   echo "git_sha=$(git rev-parse HEAD)"
   echo "model=$MODEL"
   echo "candidate_batch_size=$CANDIDATE_BATCH_SIZE"
+  echo "prior_strength=$PRIOR_STRENGTH"
   echo "risk_budget=$RISK_BUDGET"
   echo "min_coverage=$MIN_COVERAGE"
   echo "permutation_cases_per_k=$PERMUTATION_CASES_PER_K"
@@ -100,10 +128,9 @@ python examples/run_m5_qwen_stress.py   --model "$MODEL"   --inventory "$OUT_DIR
   python -m pip freeze
 } > "$OUT_DIR/environment.txt"
 
-python - "$OUT_DIR" "$MODEL" "$CANDIDATE_BATCH_SIZE" <<'PY'
+python - "$OUT_DIR" "$MODEL" "$CANDIDATE_BATCH_SIZE" "$PRIOR_STRENGTH" <<'PY'
 import hashlib
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -111,6 +138,7 @@ from pathlib import Path
 out_dir = Path(sys.argv[1])
 model = sys.argv[2]
 batch_size = int(sys.argv[3])
+prior_strength = float(sys.argv[4])
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -129,6 +157,7 @@ manifest = {
     ).strip(),
     "model": model,
     "candidate_batch_size": batch_size,
+    "prior_strength": prior_strength,
     "gpu": gpu_rows,
     "artifacts": {},
 }
