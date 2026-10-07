@@ -12,9 +12,18 @@ class TransformersCausalLMBackend:
     device: str = "auto"
     dtype: str = "auto"
     length_normalize: bool = True
+    candidate_batch_size: int | None = None
     name: str = "transformers-causal-lm"
 
     def __post_init__(self) -> None:
+        if (
+            self.candidate_batch_size is not None
+            and self.candidate_batch_size <= 0
+        ):
+            raise ValueError(
+                "candidate_batch_size must be > 0 when set"
+            )
+
         try:
             import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -56,6 +65,39 @@ class TransformersCausalLMBackend:
                 "candidates must not be empty"
             )
 
+        batch_size = (
+            self.candidate_batch_size
+            or len(candidates)
+        )
+        values: list[float] = []
+        total_tokens = 0
+
+        for start in range(
+            0,
+            len(candidates),
+            batch_size,
+        ):
+            batch = candidates[
+                start : start + batch_size
+            ]
+            batch_values, batch_tokens = (
+                self._logprobs_batch(
+                    prompt=prompt,
+                    candidates=batch,
+                )
+            )
+            values.extend(batch_values)
+            total_tokens += batch_tokens
+
+        self.last_tokens_processed = total_tokens
+        return values
+
+    def _logprobs_batch(
+        self,
+        *,
+        prompt: str,
+        candidates: Sequence[str],
+    ) -> tuple[list[float], int]:
         torch = self._torch
         tokenizer = self._tokenizer
         model = self._model
@@ -131,10 +173,6 @@ class TransformersCausalLMBackend:
                 :length,
             ] = 1
 
-        self.last_tokens_processed = sum(
-            lengths
-        )
-
         device = next(
             model.parameters()
         ).device
@@ -180,7 +218,7 @@ class TransformersCausalLMBackend:
 
             values.append(float(value))
 
-        return values
+        return values, sum(lengths)
 
     def logprob(
         self,
