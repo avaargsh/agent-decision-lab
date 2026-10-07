@@ -15,13 +15,14 @@ The cloud-GPU replay issue is #40.
 
 ## Model arms prepared now
 
-The replay currently supports:
+The replay now supports three comparable arms over the same frozen workload:
 
 1. Qwen frozen candidate continuation scoring
-2. same-base autoregressive structured output
+2. candidate-prior-corrected frozen scoring
+3. same-base autoregressive structured output
 
-A bias-corrected continuation-scoring arm will be added next without changing
-the frozen workload contract.
+All three use the same calibration/test split boundary and the same K stress
+matrix.
 
 ## Frozen prompt variant
 
@@ -39,12 +40,40 @@ M5 therefore uses `compact_candidate_prompt`:
 
 The original prompt remains unchanged for historical v1 artifacts.
 
+## Candidate-prior correction
+
+The new corrected arm applies:
+
+```text
+corrected_i =
+  task_logprob(candidate_i)
+  - alpha * neutral_logprob(candidate_i)
+```
+
+and then performs restricted softmax over the corrected candidate scores.
+
+The neutral prompt preserves the decision type but removes task-specific
+evidence. Neutral candidate scores are cached by prompt + candidate identity so
+repeated stress cases do not keep recomputing the same prior.
+
+The default is `alpha = 1.0`, recorded as `prior_strength`.
+
+This arm is **AnyJev-inspired, not AnyJev L0 parity**.
+
+AnyJev L0 combines option-order cyclic shifts with label-prior correction on a
+typed next-token label readout. The M5 continuation-scoring path instead removes
+candidate continuation priors directly and is designed to remain usable at
+K=100. The repository must not report it as a reproduction of AnyJev L0.
+
+An exact option-label rotation baseline can be added separately if it has a
+well-defined representation for the requested candidate count.
+
 ## High-K memory control
 
 K=100 must not silently become a smaller benchmark just because a rented GPU has
 limited memory.
 
-`TransformersCausalLMBackend.candidate_batch_size` therefore chunks candidate
+`TransformersCausalLMBackend.candidate_batch_size` chunks candidate
 continuations across forward passes while preserving:
 
 - exact candidate set
@@ -83,6 +112,7 @@ From a fresh clone on a CUDA-capable machine:
 ```bash
 MODEL=Qwen/Qwen3-0.6B \
 CANDIDATE_BATCH_SIZE=16 \
+PRIOR_STRENGTH=1.0 \
 bash scripts/run_m5_gpu_replay.sh
 ```
 
@@ -95,9 +125,10 @@ It then:
 2. fetches the pinned AWS Labs MCP source revision
 3. regenerates and verifies the frozen 804-tool inventory
 4. rebuilds K=5/10/20/50/100 stress inputs
-5. executes the prepared model matrix
-6. captures GPU / Python / package / git provenance
-7. writes a content-addressed run directory with `run-manifest.json` and
+5. executes all three prepared model arms
+6. verifies all three contain the complete K matrix
+7. captures GPU / Python / package / git provenance
+8. writes a content-addressed run directory with `run-manifest.json` and
    `sha256sums.txt`
 
 The GitHub workflow is manual-only and targets a self-hosted runner labeled
