@@ -1,0 +1,111 @@
+name: m6-abstention-corpus
+
+on:
+  pull_request:
+    paths:
+      - "benchmarks/mcp_tool_router/v3.abstention.*"
+      - "src/decision_lab/benchmark.py"
+      - "src/decision_lab/annotations.py"
+      - "src/decision_lab/dataset_validation.py"
+      - "src/decision_lab/robustness.py"
+      - "scripts/validate_abstention_corpus.py"
+      - ".github/workflows/m6-abstention-corpus.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-abstention:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout benchmark repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install benchmark package
+        run: pip install -e .
+
+      - name: Checkout pinned AWS Labs MCP source
+        uses: actions/checkout@v4
+        with:
+          repository: awslabs/mcp
+          ref: 5abe7e82ba70556f80d2f42558d63a20aa3ce56c
+          path: .upstream/awslabs-mcp
+          sparse-checkout: |
+            src
+
+      - name: Rebuild frozen inventory
+        run: |
+          mkdir -p artifacts
+          python scripts/extract_mcp_inventory.py             --root .upstream/awslabs-mcp             --repository awslabs/mcp             --revision 5abe7e82ba70556f80d2f42558d63a20aa3ce56c             --inventory-id awslabs-mcp@5abe7e82ba70             --output artifacts/awslabs-mcp.inventory.json
+
+      - name: Verify inventory identity
+        run: |
+          python - <<'PY'
+          from decision_lab.inventory import load_inventory, inventory_digest
+
+          expected = "9e36175089bbba8714ad9e5db5efddd92812516937cf8acd3c124d61517e3d67"
+          inventory = load_inventory("artifacts/awslabs-mcp.inventory.json")
+          actual = inventory_digest(inventory)
+          assert len(inventory.tools) == 804, len(inventory.tools)
+          assert actual == expected, (actual, expected)
+          print(f"inventory_tools={len(inventory.tools)} sha256={actual}")
+          PY
+
+      - name: Validate abstention corpus
+        run: |
+          python scripts/validate_abstention_corpus.py             --inventory artifacts/awslabs-mcp.inventory.json             --cases benchmarks/mcp_tool_router/v3.abstention.test.jsonl             | tee artifacts/v3-abstention-validation.json
+
+      - name: Verify abstention balance
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("artifacts/v3-abstention-validation.json").read_text()
+          )
+          assert report["schema_version"] == "abstention-corpus-validation/v1"
+          assert report["inventory_tool_count"] == 804
+          assert report["case_count"] == 16
+          assert report["expected_abstain_count"] == 16
+          assert report["coverage"] == {
+              "covered": 8,
+              "missing_candidate": 4,
+              "unsupported": 4,
+          }
+          assert report["ambiguity"] == {
+              "clear": 8,
+              "multi_valid": 4,
+              "underspecified": 4,
+          }
+          assert report["risk"] == {
+              "high": 4,
+              "low": 6,
+              "medium": 6,
+          }
+          assert report["effect"] == {
+              "read_only": 6,
+              "sensitive_read": 5,
+              "unknown": 1,
+              "write_capable": 4,
+          }
+          assert report["no_gold_count"] == 12
+          assert report["missing_gold_identity_count"] == 4
+
+          print("validated 16 explicit expected-abstain cases")
+          PY
+
+      - name: Upload abstention validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: m6-abstention-corpus-validation
+          path: |
+            artifacts/awslabs-mcp.inventory.json
+            artifacts/v3-abstention-validation.json
+          if-no-files-found: error
