@@ -6,6 +6,7 @@ on:
       - "benchmarks/mcp_tool_router/v2.real_identity.*"
       - "src/decision_lab/dataset_validation.py"
       - "src/decision_lab/stress_suite.py"
+      - "src/decision_lab/semantic_embeddings.py"
       - "scripts/build_m5_stress_artifacts.py"
       - ".github/workflows/m5-real-identity-stress.yml"
   workflow_dispatch:
@@ -80,7 +81,7 @@ jobs:
           manifest = json.loads(
               Path("artifacts/m5/manifest.json").read_text()
           )
-          assert manifest["schema_version"] == "m5-stress-suite/v1"
+          assert manifest["schema_version"] == "m5-stress-suite/v2"
           assert manifest["candidate_counts"] == [5, 10, 20, 50, 100]
           assert manifest["strategies"] == ["random", "lexical"]
           assert manifest["inventory"]["tool_count"] == 804
