@@ -57,30 +57,10 @@ def validate_calibration_test_pair(
         )
 
     if inventory is not None:
-        inventory_names = {tool.name for tool in inventory.tools}
-        for case in [*calibration_cases, *test_cases]:
-            missing = [
-                candidate
-                for candidate in case.candidates
-                if candidate not in inventory_names
-            ]
-            if missing:
-                raise ValueError(
-                    f"{case.case_id} candidates absent from inventory: "
-                    + ", ".join(sorted(missing))
-                )
-            coverage = case.metadata.get("coverage")
-            if case.gold_candidate is not None:
-                if case.gold_candidate not in inventory_names:
-                    raise ValueError(
-                        f"{case.case_id} gold candidate absent from inventory: "
-                        f"{case.gold_candidate}"
-                    )
-            elif coverage not in {"unsupported", "covered"}:
-                raise ValueError(
-                    f"{case.case_id} missing gold candidate is only valid for "
-                    "unsupported or ambiguous covered abstention cases"
-                )
+        validate_inventory_references(
+            [*calibration_cases, *test_cases],
+            inventory,
+        )
 
     return SplitValidationReport(
         calibration_count=len(calibration_cases),
@@ -125,3 +105,36 @@ def _context_fingerprint(case: BenchmarkCase) -> str:
         sort_keys=True,
         separators=(",", ":"),
     )
+
+
+
+def validate_inventory_references(
+    cases: Sequence[BenchmarkCase],
+    inventory: ToolInventory,
+) -> None:
+    inventory_names = {tool.name for tool in inventory.tools}
+
+    for case in cases:
+        missing = [
+            candidate
+            for candidate in case.candidates
+            if candidate not in inventory_names
+        ]
+        if missing:
+            raise ValueError(
+                f"{case.case_id} candidates absent from inventory: "
+                + ", ".join(sorted(missing))
+            )
+
+        coverage = case.metadata.get("coverage")
+        if case.gold_candidate is not None:
+            if case.gold_candidate not in inventory_names:
+                raise ValueError(
+                    f"{case.case_id} gold candidate absent from inventory: "
+                    f"{case.gold_candidate}"
+                )
+        elif coverage not in {"unsupported", "covered"}:
+            raise ValueError(
+                f"{case.case_id} missing gold candidate is only valid for "
+                "unsupported or ambiguous covered abstention cases"
+            )
