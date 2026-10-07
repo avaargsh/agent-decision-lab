@@ -1,4 +1,4 @@
-name: m5-qwen-gpu-replay
+name: decision-gpu-replay
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  qwen-gpu-replay:
+  decision-gpu-replay:
     runs-on: [self-hosted, linux, gpu]
     timeout-minutes: 240
     env:
@@ -45,6 +45,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: m5-qwen-gpu-replay
+          name: decision-gpu-replay
           path: artifacts/gpu-replay/
           if-no-files-found: error
