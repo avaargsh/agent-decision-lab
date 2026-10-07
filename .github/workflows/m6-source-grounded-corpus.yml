@@ -1,0 +1,113 @@
+name: m6-source-grounded-corpus
+
+on:
+  pull_request:
+    paths:
+      - "benchmarks/mcp_tool_router/v3.source_grounded.*"
+      - "src/decision_lab/annotations.py"
+      - "src/decision_lab/dataset_validation.py"
+      - "scripts/validate_source_grounded_corpus.py"
+      - "docs/mcp-routing-annotation-guidelines.md"
+      - ".github/workflows/m6-source-grounded-corpus.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout benchmark repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install benchmark package
+        run: pip install -e .
+
+      - name: Checkout pinned AWS Labs MCP source
+        uses: actions/checkout@v4
+        with:
+          repository: awslabs/mcp
+          ref: 5abe7e82ba70556f80d2f42558d63a20aa3ce56c
+          path: .upstream/awslabs-mcp
+          sparse-checkout: |
+            src
+
+      - name: Rebuild frozen inventory
+        run: |
+          mkdir -p artifacts
+          python scripts/extract_mcp_inventory.py \
+            --root .upstream/awslabs-mcp \
+            --repository awslabs/mcp \
+            --revision 5abe7e82ba70556f80d2f42558d63a20aa3ce56c \
+            --inventory-id awslabs-mcp@5abe7e82ba70 \
+            --output artifacts/awslabs-mcp.inventory.json
+
+      - name: Verify inventory identity
+        run: |
+          python - <<'PY'
+          from decision_lab.inventory import load_inventory, inventory_digest
+
+          expected = "9e36175089bbba8714ad9e5db5efddd92812516937cf8acd3c124d61517e3d67"
+          inventory = load_inventory("artifacts/awslabs-mcp.inventory.json")
+          actual = inventory_digest(inventory)
+          assert len(inventory.tools) == 804, len(inventory.tools)
+          assert actual == expected, (actual, expected)
+          print(f"inventory_tools={len(inventory.tools)} sha256={actual}")
+          PY
+
+      - name: Validate source-grounded labels
+        run: |
+          python scripts/validate_source_grounded_corpus.py \
+            --inventory artifacts/awslabs-mcp.inventory.json \
+            --calibration benchmarks/mcp_tool_router/v3.source_grounded.calibration.jsonl \
+            --test benchmarks/mcp_tool_router/v3.source_grounded.test.jsonl \
+            | tee artifacts/v3-validation.json
+
+      - name: Verify corpus balance
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("artifacts/v3-validation.json").read_text()
+          )
+          assert report["schema_version"] == "source-grounded-corpus-validation/v1"
+          assert report["inventory_tool_count"] == 804
+
+          for split in ("calibration", "test"):
+              data = report[split]
+              assert data["case_count"] == 20, data
+              assert data["annotations"]["ambiguity"] == {
+                  "clear": 3,
+                  "near_neighbor": 17,
+              }
+              assert data["annotations"]["risk"] == {
+                  "high": 1,
+                  "low": 12,
+                  "medium": 7,
+              }
+              assert data["annotations"]["effect"] == {
+                  "read_only": 12,
+                  "sensitive_read": 7,
+                  "write_capable": 1,
+              }
+              assert data["annotations"]["expected_abstain"] == 0
+
+          print("validated 20+20 source-grounded near-neighbour corpus")
+          PY
+
+      - name: Upload corpus validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: m6-source-grounded-corpus-validation
+          path: |
+            artifacts/awslabs-mcp.inventory.json
+            artifacts/v3-validation.json
+          if-no-files-found: error
