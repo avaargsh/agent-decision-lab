@@ -178,6 +178,18 @@ System-2 result.
 
 See `schemas/decision-eval-artifact.schema.json`.
 
+## Experimental typed output and sealed calibration profile
+
+The opt-in `decision-output/v1` contract distinguishes Choice / Boolean / Score,
+including explicit abstention semantics. A separate content-addressed
+`calibration-profile/v1` binds a held-out calibration split, exact model/adapter
+identity, temperature and a confidence policy; a profile-bound **choice**
+gateway applies that policy with fail-closed scope checks.
+
+This does **not** enable Boolean/Score model serving or change the existing
+`/decision` or `decision-eval/v1` API. See
+[typed decision and profile contracts](docs/typed-decision-calibration-profile.md).
+
 ## Status
 
 Public pre-1.0 research and engineering repository. The Decision Gateway, calibration primitives, benchmark harness, deterministic demo server, and Qwen experiment path are implemented. Dedicated decision heads, Decision LoRA, and vLLM/SGLang serving remain experimental roadmap work.
