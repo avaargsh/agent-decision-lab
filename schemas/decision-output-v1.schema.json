@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/avaargsh/agent-decision-lab/schemas/decision-output-v1.schema.json",
+  "title": "Typed bounded decision recommendation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "value", "abstain", "confidence"],
+  "properties": {
+    "schema_version": {"const": "decision-output/v1"},
+    "kind": {"enum": ["choice", "boolean", "score"]},
+    "value": {},
+    "abstain": {"type": "boolean"},
+    "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"abstain": {"const": true}}, "required": ["abstain"]},
+      "then": {
+        "properties": {
+          "value": {"type": "null"},
+          "confidence": {"type": "null"}
+        }
+      },
+      "else": {
+        "properties": {"confidence": {"type": "number"}}
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "choice"}}, "required": ["kind"]},
+      "then": {
+        "properties": {"value": {"type": ["string", "null"], "minLength": 1}}
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "boolean"}}, "required": ["kind"]},
+      "then": {"properties": {"value": {"type": ["boolean", "null"]}}}
+    },
+    {
+      "if": {"properties": {"kind": {"const": "score"}}, "required": ["kind"]},
+      "then": {
+        "properties": {
+          "value": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+        }
+      }
+    }
+  ]
+}
