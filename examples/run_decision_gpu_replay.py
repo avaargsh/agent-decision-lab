@@ -13,6 +13,7 @@ from decision_lab.dataset_validation import (
     validate_inventory_references,
 )
 from decision_lab.inventory import inventory_digest, load_inventory
+from decision_lab.model_snapshot import freeze_model_snapshot
 from decision_lab.logits import (
     FrozenLogitAdapter,
     compact_candidate_prompt,
@@ -42,6 +43,8 @@ def parse_args() -> argparse.Namespace:
         )
     )
     parser.add_argument("--model", default="Qwen/Qwen3-0.6B")
+    parser.add_argument("--model-revision", required=True,
+                        help="Immutable 40-hex Hugging Face commit SHA")
     parser.add_argument("--inventory", required=True)
 
     parser.add_argument("--m5-calibration", required=True)
@@ -76,6 +79,18 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    # Resolve exactly once: all three arms load the same local HF snapshot,
+    # rather than resolving the mutable remote model independently.
+    snapshot_path, snapshot_evidence = freeze_model_snapshot(
+        args.model, args.model_revision
+    )
+    model_ref = snapshot_evidence["model_ref"]
+    evidence_path = Path(args.output).parent / "model-snapshot.json"
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.write_text(
+        json.dumps(snapshot_evidence, indent=2, sort_keys=True) + "\\n",
+        encoding="utf-8",
+    )
     inventory = load_inventory(args.inventory)
 
     m5_calibration = load_jsonl(args.m5_calibration)
@@ -115,7 +130,7 @@ def main() -> None:
     )
 
     frozen_backend = TransformersCausalLMBackend(
-        model_id=args.model,
+        model_id=str(snapshot_path),
         length_normalize=True,
         candidate_batch_size=args.candidate_batch_size,
     )
@@ -168,7 +183,7 @@ def main() -> None:
     gc.collect()
 
     structured = TransformersStructuredOutputAdapter(
-        model_id=args.model,
+        model_id=str(snapshot_path),
         max_new_tokens=48,
     )
     structured_m5 = _run_m5(
@@ -223,7 +238,7 @@ def main() -> None:
                 calibration_path=calibration_path,
                 calibration_cases=calibration_cases,
                 test_cases=test_cases,
-                model_ref=args.model,
+                model_ref=model_ref,
                 inventory_sha256=inventory_ref,
             )
             for arm, report in arms.items()
@@ -234,6 +249,9 @@ def main() -> None:
         "calibration_profiles": replay_profiles,
         "metadata": {
             "model": args.model,
+            "model_ref": model_ref,
+            "model_revision": args.model_revision,
+            "model_snapshot_digest": snapshot_evidence["content_digest"],
             "inventory_id": inventory.inventory_id,
             "inventory_sha256": inventory_digest(inventory),
             "inventory_tool_count": len(inventory.tools),
