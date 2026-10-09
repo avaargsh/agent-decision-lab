@@ -141,6 +141,15 @@ def test_profile_rejects_bad_provenance_and_selection():
         make_profile(inventory_sha256="not-a-digest")
 
 
+def test_no_feasible_risk_budget_profile_cannot_automate():
+    profile = make_profile(
+        threshold_selection="calibration_median_confidence_fallback",
+    )
+    assert verify_calibration_profile(profile)
+    with pytest.raises(ValueError, match="cannot enable automatic decisions"):
+        gateway(profile)
+
+
 def test_gateway_validates_raw_scores_before_calibration():
     bad_scorer = lambda request: [
         CandidateScore("metrics", 0.8),
