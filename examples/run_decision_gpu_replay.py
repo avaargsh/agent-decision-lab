@@ -21,6 +21,7 @@ from decision_lab.prior_correction import (
     PriorCorrectedFrozenLogitAdapter,
 )
 from decision_lab.provenance import dataset_provenance
+from decision_lab.replay_profile import build_replay_calibration_profile
 from decision_lab.quality_experiment import (
     run_calibrated_quality_experiment,
 )
@@ -186,8 +187,51 @@ def main() -> None:
         m6_abstention,
     )
 
+    # Produced only from the measured M5/M6 calibration reports. The
+    # protocols deliberately retain different fitted thresholds and digests.
+    replay_profiles = {
+        "schema_version": "decision-gpu-calibration-profiles/v1",
+    }
+    inventory_ref = "sha256:" + inventory_digest(inventory)
+    for protocol, calibration_path, calibration_cases, test_cases, arms in (
+        (
+            "m5_candidate_scaling",
+            args.m5_calibration,
+            m5_calibration,
+            m5_test,
+            {
+                "frozen_logits": frozen_m5,
+                "prior_corrected_logits": prior_m5,
+                "structured_output": structured_m5,
+            },
+        ),
+        (
+            "m6_source_grounded_quality",
+            args.m6_calibration,
+            m6_calibration,
+            m6_test,
+            {
+                "frozen_logits": frozen_m6,
+                "prior_corrected_logits": prior_m6,
+                "structured_output": structured_m6,
+            },
+        ),
+    ):
+        replay_profiles[protocol] = {
+            arm: build_replay_calibration_profile(
+                report,
+                calibration_path=calibration_path,
+                calibration_cases=calibration_cases,
+                test_cases=test_cases,
+                model_ref=args.model,
+                inventory_sha256=inventory_ref,
+            )
+            for arm, report in arms.items()
+        }
+
     payload = {
         "schema_version": "decision-gpu-replay/v1",
+        "calibration_profiles": replay_profiles,
         "metadata": {
             "model": args.model,
             "inventory_id": inventory.inventory_id,

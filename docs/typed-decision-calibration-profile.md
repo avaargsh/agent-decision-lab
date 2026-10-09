@@ -110,6 +110,12 @@ A matching string alone is not cryptographic attestation of the runtime.
 - Keep calibration/test disjoint; do not fit thresholds on abstention cases.
 - Before production deployment, require M5/M6 replay evidence and a
   trace-backed quality corpus.
+- M5/M6 GPU replay now derives opt-in profiles from each protocol's
+  `CalibratedStressReport` / `CalibratedQualityReport`, checks calibration
+  bytes and case identities, and exports them inside
+  `decision-gpu-replay/v1.calibration_profiles`.
+  The new producer is `decision_lab.replay_profile.build_replay_calibration_profile`.
+  This does not prove the underlying model was correctly loaded or calibrated.
 
 Schemas: `schemas/decision-output-v1.schema.json` and
 `schemas/calibration-profile-v1.schema.json`.

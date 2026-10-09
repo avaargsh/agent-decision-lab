@@ -40,7 +40,8 @@
 - [x] opt-in typed Choice / Boolean / Score result and abstention contract
 - [x] sealed calibration-profile/v1 with calibration-split provenance
 - [x] choice gateway profile binding with model/task/inventory guards
-- [ ] integrate profile production into measured M5/M6 artifacts (requires retained GPU result)
+- [x] wire per-arm M5/M6 replay profile production from calibration reports
+- [ ] retain and independently review real GPU-produced M5/M6 profiles and metrics
 - [ ] promote a real-model `qwen` HTTP serving mode only after replay acceptance
 
 ## v0.3 — Model adapters

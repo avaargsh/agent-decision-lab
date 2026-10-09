@@ -106,6 +106,21 @@ Top-level sections:
 
 - `m5_candidate_scaling`
 - `m6_source_grounded_quality`
+- `calibration_profiles` (additive evidence; each M5/M6 model arm
+  emits a sealed `calibration-profile/v1` under
+  `decision-gpu-calibration-profiles/v1`)
+
+The emitted profiles are derived from the measured calibration report and
+the **exact calibration JSONL bytes**. Model/adapter, frozen inventory,
+temperature, operating-point selection, and calibration case IDs are bound
+into each content digest. M5 and M6 never share profiles or refit on test
+or abstention cases. If a risk-budget operating point is unavailable, the
+fallback-threshold profile remains replay evidence only: the profile-bound
+gateway refuses to automate from it.
+
+Content-addressing proves integrity, not independent fit correctness,
+production routing quality, or cryptographic verification of loaded model
+weights. This does not promote the model-serving HTTP path.
 
 The run directory also contains:
 
