@@ -88,7 +88,7 @@ def main() -> None:
     evidence_path = Path(args.output).parent / "model-snapshot.json"
     evidence_path.parent.mkdir(parents=True, exist_ok=True)
     evidence_path.write_text(
-        json.dumps(snapshot_evidence, indent=2, sort_keys=True) + "\\n",
+        json.dumps(snapshot_evidence, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     inventory = load_inventory(args.inventory)
