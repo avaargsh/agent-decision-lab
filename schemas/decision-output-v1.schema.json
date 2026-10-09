@@ -22,7 +22,7 @@
         }
       },
       "else": {
-        "properties": {"confidence": {"type": "number"}}
+        "properties": {"confidence": {"type": "number"}, "value": {"not": {"type": "null"}}}
       }
     },
     {
