@@ -49,6 +49,8 @@ threshold selected on a **held-out calibration split**. It binds:
 `threshold_selection` distinguishes `calibration_risk_budget` from
 `calibration_median_confidence_fallback`. The latter indicates no feasible
 calibration operating point was found; it is not approval to automate.
+The profile-bound gateway **rejects** median-confidence fallback selection for
+automatic decisions. Such profiles are retained as benchmark evidence only.
 The profile records **a producer claim about the fitting method**, not proof
 that the model is calibrated or that the selected risk holds in production.
 
