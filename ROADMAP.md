@@ -56,6 +56,7 @@
 - [x] same-base autoregressive structured-output adapter
 - [x] AnyJev-inspired candidate-prior correction baseline
 - [x] combined M5 + M6 GPU replay protocol with grouped abstention FAR
+- [x] fail-closed pinned HF model revision and byte-level snapshot evidence
 - [ ] rented-GPU retained three-arm stress artifact
 - [ ] exact option-rotation / label-prior ablation
 - [ ] Decision LoRA
