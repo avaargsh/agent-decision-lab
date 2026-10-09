@@ -131,9 +131,8 @@ default.
 
 ```bash
 # Resolve the commit once, and record the resulting SHA with the run request.
-python -c 'from huggingface_hub import HfApi; print(HfApi().model_info("Qwen/Qwen3-0.6B").sha)'
-MODEL=Qwen/Qwen3-0.6B MODEL_REVISION=<40-hex-commit> \\
-  bash scripts/run_m5_gpu_replay.sh
+export MODEL_REVISION="$(python -c 'from huggingface_hub import HfApi; print(HfApi().model_info("Qwen/Qwen3-0.6B").sha)')"
+MODEL=Qwen/Qwen3-0.6B bash scripts/run_m5_gpu_replay.sh
 ```
 
 All three arms (including the autoregressive baseline) load the same
