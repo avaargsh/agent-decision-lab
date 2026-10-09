@@ -37,6 +37,12 @@
 - [x] ambiguity/risk annotation guidelines
 - [x] explicit underspecified / multi-valid / missing / unsupported abstention corpus
 
+- [x] opt-in typed Choice / Boolean / Score result and abstention contract
+- [x] sealed calibration-profile/v1 with calibration-split provenance
+- [x] choice gateway profile binding with model/task/inventory guards
+- [ ] integrate profile production into measured M5/M6 artifacts (requires retained GPU result)
+- [ ] promote a real-model `qwen` HTTP serving mode only after replay acceptance
+
 ## v0.3 — Model adapters
 - [x] frozen-LM candidate-logit adapter
 - [x] optional Hugging Face causal-LM backend
