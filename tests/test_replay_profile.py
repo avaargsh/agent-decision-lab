@@ -11,6 +11,7 @@ from decision_lab.calibration_profile import (
     verify_calibration_profile,
 )
 from decision_lab.quality_experiment import run_calibrated_quality_experiment
+from decision_lab.models import DecisionRequest
 from decision_lab.replay_profile import build_replay_calibration_profile
 
 INVENTORY_SHA = "sha256:" + "b" * 64
@@ -103,9 +104,7 @@ def test_quality_report_generates_replayable_profile(tmp_path):
         test_case_ids=["t1", "t2"],
     )
     assert bound.decide(
-        __import__("decision_lab.models", fromlist=["DecisionRequest"]).DecisionRequest(
-            "router", ["a", "b"], {"intent": "test-a"}
-        )
+        DecisionRequest("router", ["a", "b"], {"intent": "test-a"})
     ).action in {"EXECUTE", "FALLBACK"}
 
 
