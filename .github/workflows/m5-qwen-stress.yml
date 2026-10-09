@@ -7,6 +7,10 @@ on:
         description: Hugging Face causal LM checkpoint
         required: true
         default: Qwen/Qwen3-0.6B
+      model_revision:
+        description: Required lowercase 40-hex Hugging Face commit SHA
+        required: true
+        type: string
       candidate_batch_size:
         description: Frozen-logit candidates per forward pass
         required: true
@@ -25,6 +29,7 @@ jobs:
     timeout-minutes: 240
     env:
       MODEL: ${{ inputs.model }}
+      MODEL_REVISION: ${{ inputs.model_revision }}
       CANDIDATE_BATCH_SIZE: ${{ inputs.candidate_batch_size }}
       PRIOR_STRENGTH: ${{ inputs.prior_strength }}
       HF_TOKEN: ${{ secrets.HF_TOKEN }}

@@ -122,6 +122,31 @@ Content-addressing proves integrity, not independent fit correctness,
 production routing quality, or cryptographic verification of loaded model
 weights. This does not promote the model-serving HTTP path.
 
+## Immutable model checkpoint evidence
+
+The one-shot replay requires `MODEL_REVISION` to be an explicit lowercase,
+40-character Hugging Face commit SHA. Mutable branches and tags are rejected.
+The manual GitHub Actions workflow also requires `model_revision`; it has no
+default.
+
+```bash
+# Resolve the commit once, and record the resulting SHA with the run request.
+export MODEL_REVISION="$(python -c 'from huggingface_hub import HfApi; print(HfApi().model_info("Qwen/Qwen3-0.6B").sha)')"
+MODEL=Qwen/Qwen3-0.6B bash scripts/run_m5_gpu_replay.sh
+```
+
+All three arms (including the autoregressive baseline) load the same
+**locally materialized snapshot**, not a separately resolved remote model.
+The run writes `model-snapshot.json` (`model-snapshot/v1`) with the
+model ID, commit, per-file SHA-256 and combined content digest. The
+combined report, all six calibration profiles, environment and run manifest
+carry the pinned model reference/digest. A wrong revision, missing weight
+file, or cache symlink escape fails closed.
+
+This establishes source and file-byte identity, not bitwise deterministic
+CUDA execution, independent runtime attestation, or production model quality.
+No actual GPU evaluation has been performed by this change.
+
 The run directory also contains:
 
 - regenerated frozen MCP inventory

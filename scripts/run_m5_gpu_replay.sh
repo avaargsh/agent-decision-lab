@@ -2,6 +2,11 @@
 set -euo pipefail
 
 MODEL="${MODEL:-Qwen/Qwen3-0.6B}"
+: "${MODEL_REVISION:?Set MODEL_REVISION to a 40-hex Hugging Face commit SHA}"
+if [[ ! "$MODEL_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "ERROR: MODEL_REVISION must be a lowercase 40-hex commit SHA" >&2
+  exit 2
+fi
 CANDIDATE_BATCH_SIZE="${CANDIDATE_BATCH_SIZE:-16}"
 PRIOR_STRENGTH="${PRIOR_STRENGTH:-1.0}"
 RISK_BUDGET="${RISK_BUDGET:-0.5}"
@@ -82,7 +87,7 @@ PY
 
 python scripts/build_m5_stress_artifacts.py   --inventory "$OUT_DIR/awslabs-mcp.inventory.json"   --calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl   --test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl   --candidate-counts 5,10,20,50,100   --strategies random   --seed agent-decision-benchmark-v0.2   --output-dir "$OUT_DIR/m5-inputs"
 
-python examples/run_decision_gpu_replay.py   --model "$MODEL"   --inventory "$OUT_DIR/awslabs-mcp.inventory.json"   --m5-calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl   --m5-test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl   --m5-covered "$OUT_DIR/m5-inputs/test.random.covered.jsonl"   --m5-missing "$OUT_DIR/m5-inputs/test.random.missing.jsonl"   --m6-calibration benchmarks/mcp_tool_router/v3.source_grounded.calibration.jsonl   --m6-test benchmarks/mcp_tool_router/v3.source_grounded.test.jsonl   --m6-abstention benchmarks/mcp_tool_router/v3.abstention.test.jsonl   --candidate-batch-size "$CANDIDATE_BATCH_SIZE"   --prior-strength "$PRIOR_STRENGTH"   --risk-budget "$RISK_BUDGET"   --min-coverage "$MIN_COVERAGE"   --permutation-cases-per-k "$PERMUTATION_CASES_PER_K"   --output "$OUT_DIR/decision-gpu-replay.json"
+python examples/run_decision_gpu_replay.py   --model "$MODEL"   --model-revision "$MODEL_REVISION"   --inventory "$OUT_DIR/awslabs-mcp.inventory.json"   --m5-calibration benchmarks/mcp_tool_router/v2.real_identity.calibration.jsonl   --m5-test benchmarks/mcp_tool_router/v2.real_identity.test.jsonl   --m5-covered "$OUT_DIR/m5-inputs/test.random.covered.jsonl"   --m5-missing "$OUT_DIR/m5-inputs/test.random.missing.jsonl"   --m6-calibration benchmarks/mcp_tool_router/v3.source_grounded.calibration.jsonl   --m6-test benchmarks/mcp_tool_router/v3.source_grounded.test.jsonl   --m6-abstention benchmarks/mcp_tool_router/v3.abstention.test.jsonl   --candidate-batch-size "$CANDIDATE_BATCH_SIZE"   --prior-strength "$PRIOR_STRENGTH"   --risk-budget "$RISK_BUDGET"   --min-coverage "$MIN_COVERAGE"   --permutation-cases-per-k "$PERMUTATION_CASES_PER_K"   --output "$OUT_DIR/decision-gpu-replay.json"
 
 python - "$OUT_DIR/decision-gpu-replay.json" <<'PY'
 import json
@@ -103,6 +108,19 @@ arms = (
 )
 
 for arm in arms:
+    pinned_ref = report["metadata"]["model_ref"]
+    pinned_digest = report["metadata"]["model_snapshot_digest"]
+    snapshot = json.loads(
+        (Path(sys.argv[1]).parent / "model-snapshot.json").read_text()
+    )
+    if snapshot["model_ref"] != pinned_ref:
+        raise SystemExit("model reference differs from snapshot evidence")
+    if pinned_digest != snapshot["content_digest"]:
+        raise SystemExit("model snapshot evidence digest mismatch")
+    for protocol in ("m5_candidate_scaling", "m6_source_grounded_quality"):
+        profile = report["calibration_profiles"][protocol][arm]
+        if profile["model_ref"] != pinned_ref:
+            raise SystemExit(f"{protocol}/{arm} profile model revision drift")
     m5 = report["m5_candidate_scaling"][arm]
     ks = [
         item["candidate_count"]
@@ -156,6 +174,7 @@ PY
 {
   echo "git_sha=$(git rev-parse HEAD)"
   echo "model=$MODEL"
+  echo "model_revision=$MODEL_REVISION"
   echo "candidate_batch_size=$CANDIDATE_BATCH_SIZE"
   echo "prior_strength=$PRIOR_STRENGTH"
   echo "risk_budget=$RISK_BUDGET"
@@ -171,7 +190,7 @@ PY
   python -m pip freeze
 } > "$OUT_DIR/environment.txt"
 
-python - "$OUT_DIR" "$MODEL" "$CANDIDATE_BATCH_SIZE" "$PRIOR_STRENGTH" <<'PY'
+python - "$OUT_DIR" "$MODEL" "$MODEL_REVISION" "$CANDIDATE_BATCH_SIZE" "$PRIOR_STRENGTH" <<'PY'
 import hashlib
 import json
 import subprocess
@@ -180,8 +199,9 @@ from pathlib import Path
 
 out_dir = Path(sys.argv[1])
 model = sys.argv[2]
-batch_size = int(sys.argv[3])
-prior_strength = float(sys.argv[4])
+revision = sys.argv[3]
+batch_size = int(sys.argv[4])
+prior_strength = float(sys.argv[5])
 
 
 def sha256(path: Path) -> str:
@@ -201,6 +221,8 @@ manifest = {
         text=True,
     ).strip(),
     "model": model,
+    "model_revision": revision,
+    "model_snapshot_digest": json.loads((out_dir / "model-snapshot.json").read_text())["content_digest"],
     "candidate_batch_size": batch_size,
     "prior_strength": prior_strength,
     "gpu": gpu_rows,

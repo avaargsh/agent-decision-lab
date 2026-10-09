@@ -96,6 +96,11 @@ decision-lab-server --mode demo --host 127.0.0.1 --port 8080
 
 See `docs/quickstart.md` and `docs/api.md` for the benchmark and HTTP contracts.
 
+GPU model-enabled replay now **requires** a full 40-hex Hugging Face
+`MODEL_REVISION` (also required in workflow_dispatch). A single local snapshot
+is hashed in `model-snapshot.json` and shared across all three arms. See
+`docs/m6-source-grounded-quality.md` for the invocation and evidence boundary.
+
 M5/M6 replay now also emits sealed per-arm calibration profiles in the
 combined report, derived from calibration-only fitted results and exact
 calibration JSONL bytes. This path is wired but remains **unmeasured on
