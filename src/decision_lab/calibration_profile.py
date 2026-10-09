@@ -181,6 +181,8 @@ def build_profile_bound_gateway(
     """
     if not verify_calibration_profile(profile):
         raise ValueError("invalid calibration profile")
+    if profile["threshold_selection"] != "calibration_risk_budget":
+        raise ValueError("fallback-selected profile cannot enable automatic decisions")
     for field, actual in (
         ("adapter", adapter),
         ("model_ref", model_ref),
