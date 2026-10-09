@@ -96,6 +96,11 @@ decision-lab-server --mode demo --host 127.0.0.1 --port 8080
 
 See `docs/quickstart.md` and `docs/api.md` for the benchmark and HTTP contracts.
 
+M5/M6 replay now also emits sealed per-arm calibration profiles in the
+combined report, derived from calibration-only fitted results and exact
+calibration JSONL bytes. This path is wired but remains **unmeasured on
+rented GPU hardware**; see `docs/m6-source-grounded-quality.md`.
+
 Real-model comparison reports bind both calibration and test inputs to their exact SHA-256 bytes, case count and case IDs. This makes a reported metric replayable against the dataset revision that actually produced it instead of relying on a mutable file path alone.
 
 ## Measured System-2 fallback
