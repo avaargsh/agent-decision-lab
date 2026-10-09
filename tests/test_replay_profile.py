@@ -13,6 +13,7 @@ from decision_lab.calibration_profile import (
 from decision_lab.quality_experiment import run_calibrated_quality_experiment
 from decision_lab.models import DecisionRequest
 from decision_lab.replay_profile import build_replay_calibration_profile
+from decision_lab.stress_experiment import run_calibrated_stress_experiment
 
 INVENTORY_SHA = "sha256:" + "b" * 64
 MODEL_REF = "Qwen/Qwen3-0.6B@fixture-revision"
@@ -161,3 +162,58 @@ def test_rejects_conflicting_decision_type(tmp_path):
     mixed = [replace(test[0], decision_type="policy_gate"), test[1]]
     with pytest.raises(ValueError, match="one decision type"):
         produce(path, calibration, mixed, report)
+
+
+def test_m5_stress_report_produces_separate_profile(tmp_path):
+    calibration = [
+        case("m5-c1", "calibration", "source-a", "a"),
+        case("m5-c2", "calibration", "source-b", "b"),
+    ]
+    test = [
+        case("m5-t1", "test", "target-a", "a"),
+        case("m5-t2", "test", "target-b", "b"),
+    ]
+    covered = [
+        BenchmarkCase(
+            case_id="k2-covered", decision_type="router",
+            context={"intent": "stress-a"}, candidates=["a", "b"],
+            gold_candidate="a",
+            metadata={"split": "test", "candidate_count": 2},
+        )
+    ]
+    missing = [
+        BenchmarkCase(
+            case_id="k2-missing", decision_type="router",
+            context={"intent": "missing-a"}, candidates=["b", "x"],
+            gold_candidate="a",
+            metadata={
+                "split": "test", "candidate_count": 2,
+                "expected_abstain": True, "shift": "missing_candidate",
+            },
+        )
+    ]
+
+    def mapping(request):
+        preferred = "a" if request.context["intent"].endswith("-a") else "b"
+        values = {item: 0.05 for item in request.candidates}
+        if preferred in values:
+            values[preferred] = 0.95
+        return {key: val / sum(values.values()) for key, val in values.items()}
+
+    path = tmp_path / "m5-calibration.jsonl"
+    dump_jsonl(calibration, path)
+    report = run_calibrated_stress_experiment(
+        MappingScoreAdapter(mapping),
+        calibration_cases=calibration,
+        base_test_cases=test,
+        covered_stress_cases=covered,
+        missing_stress_cases=missing,
+        risk_budget=0.0,
+        min_coverage=0.5,
+        threshold_grid=[0.5],
+        permutation_cases_per_k=0,
+    )
+    profile = produce(path, calibration, test, report)
+    assert verify_calibration_profile(profile)
+    assert profile["calibration"]["case_ids"] == ["m5-c1", "m5-c2"]
+    assert profile["threshold_selection"] == "calibration_risk_budget"
